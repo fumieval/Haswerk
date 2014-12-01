@@ -16,12 +16,15 @@ import System.FilePath.Lens
 import Paths_Haswerk
 
 -- Textures: http://forum.minecraftuser.jp/viewtopic.php?t=14102
-loadBitmapsWith [|return|] "assets"
+loadBitmapsWith [|return|] "../assets"
 
 fromPMDVertex :: PMD.Vertex -> Vertex
-fromPMDVertex = Vertex <$> (fmap realToFrac <$> (V3 <$> PMD.vpx <*> PMD.vpy <*> PMD.vpz))
-  <*> (fmap realToFrac <$> (V2 <$> PMD.vu <*> PMD.vv))
-  <*> (fmap realToFrac <$> (V3 <$> PMD.vnx <*> PMD.vny <*> PMD.vnz))
+fromPMDVertex v
+  | PMD.ve v == 1 = Vertex (p + n) uv n
+  | otherwise = Vertex p uv n where
+    p = fmap realToFrac $ V3 (PMD.vpx v) (PMD.vpy v) (PMD.vpz v)
+    uv = fmap realToFrac $ V2 (PMD.vu v) (PMD.vv v)
+    n = fmap realToFrac $ V3 (PMD.vnx v) (PMD.vny v) (PMD.vnz v)
 
 fromPMDMaterial :: PMD.Material -> Color
 fromPMDMaterial m = blend 0.5
@@ -42,7 +45,7 @@ fromPMD path = do
         f <- if rest == "" then return id
           else do
             b <- readBitmap $ takeDirectory path </> tail rest
-            return $ sphericalMap b (if last rest == 'h' then MappingAdd else MappingMultiply)
+            return $ applyVFX . if last rest == 'h' then SphericalAdd b else SphericalMultiply b
         s <- go (pos + n) ms
         return $ mappend s
           $ color (fromPMDMaterial m)

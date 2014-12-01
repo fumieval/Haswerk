@@ -36,10 +36,10 @@ object :: Monad m => Object (State PlayerState |> Actions |> Nil) (StateT World 
 object = sharing handle $ PlayerState (V3 0 2 0) (V3 0 2 0) zero zero Nothing where
   handle :: Monad m => Actions a -> StateT PlayerState (StateT World m) a
   handle Jump = velocity += V3 0 0.5 0
-  handle (Turn v) = angleP += v ^* 4
+  handle (Turn v) = angleP += v ^* 3
   handle (Move v) = do
     V2 dir _ <- use angleP
-    position' += (V3 (angle dir) 0 (-perp (angle dir)) !* v) ^* 6
+    position' += (V3 (angle dir) 0 (-perp (angle dir)) !* v) ^* 4
   handle Attack = use focused >>= \case
     Just (p, _) -> lift $ blocks . voxelAt p .= Nothing
     Nothing -> return ()

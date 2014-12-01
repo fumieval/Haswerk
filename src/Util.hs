@@ -8,7 +8,7 @@ play t v
   | otherwise = v
 
 accel :: V2 Float -> V2 Float
-accel v = v ^* quadrance v ** 0.5
+accel v = v ^* quadrance v ** 0.3
 
 spherical :: RealFloat a => a -> a -> V3 a
 spherical dir elev = V3 (sin dir * cos elev) (-sin elev) (-cos dir * cos elev)
