@@ -1,23 +1,31 @@
-{-# LANGUAGE TemplateHaskell #-}
 module Assets where
 import Linear
 import Call
 import Data.Monoid
 import qualified Data.Vector.Storable as VS
 import qualified Data.Vector as V
-import qualified Data.PMD as PMD
+-- import qualified Data.PMD as PMD
 import qualified Data.ByteString.Lazy as BL
 import Control.Lens
 import Data.ByteString.Lens
 import System.IO.Unsafe
-import Data.Serialize
 import System.FilePath
 import System.FilePath.Lens
 import Paths_Haswerk
+import System.IO.Unsafe
+
+_skybox_png = unsafePerformIO $ readBitmap "assets/skybox.png"
+
+_crosshair_png = unsafePerformIO $ readBitmap "assets/crosshair.png"
+
+_stonebrick_png = unsafePerformIO $ readBitmap "assets/stonebrick.png"
+_dirt_png = unsafePerformIO $ readBitmap "assets/dirt.png"
+
+
 
 -- Textures: http://forum.minecraftuser.jp/viewtopic.php?t=14102
-loadBitmapsWith [|return|] "../assets"
-
+-- loadBitmapsWith [|return|] "../assets"
+{-
 fromPMDVertex :: PMD.Vertex -> Vertex
 fromPMDVertex v
   | PMD.ve v == 1 = Vertex (p + n) uv n
@@ -55,4 +63,4 @@ fromPMD path = do
           | i <- [pos..pos+n-1]]
       go _ [] = return mempty
   go 0 (V.toList ms)
-
+-}

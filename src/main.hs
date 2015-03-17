@@ -1,4 +1,3 @@
-{-# LANGUAGE TemplateHaskell, LambdaCase, Rank2Types, ConstraintKinds, FlexibleContexts #-}
 import Call
 import qualified Player
 import World
@@ -12,42 +11,43 @@ import Control.Lens
 import Control.Monad.State.Strict
 import Control.Elevator
 
-pipeline :: Monad m => (forall x. State w x -> m x) -> Object e (StateT w m) -> Object e m
-pipeline f obj = Object $ \e -> do
-  s <- f get
-  ((a, o'), s') <- runStateT (runObject obj e) s
-  f (put s')
-  return (a, pipeline f o')
-
-main = runSystemDefault $ do
+main = runCallDefault $ do
   setFPS 30
-  miku <- liftIO $ fromPMD "C:/Users/Fumiaki/Documents/Lat_miku/Lat式ミクVer2.31_Normalエッジ無し専用.pmd"
+  disableCursor
+  -- clearColor (V4 0 0 0 0)
   world <- new $ variable newWorld
-  pl <- new $ pipeline (world.-) Player.object
-  
-  linkGamepad $ \case
-    PadButton _ (Down 7) -> pl .^ Player.Attack
-    PadButton _ (Down 5) -> pl .^ Player.Act
+  pl <- new $ Player.object @>>^ (world.-)
+  prevCursor <- new $ variable zero
+
+  linkMouse $ \case
+    Button (Down 0) -> pl .^ Player.Attack
+    Button (Down 1) -> pl .^ Player.Act
+    Cursor pos -> do
+      pos' <- prevCursor .- get
+      pl .^ Player.Turn ((pos - pos') / 300)
+      prevCursor .- put pos
     _ -> return ()
-  
+
+  -- linkPicture $ \_ -> return $ translate (V2 320 240) $ bitmap _crosshair_png
+
   linkGraphic $ \dt -> do
     pl .^ Player.Update dt
 
-    getGamepads >>= \case
-      [] -> return ()
-      (p:_) -> do
-        (mx : mz : px : py : _) <- gamepadAxes p
-        bts <- gamepadButtons p
+    dir <- new $ variable zero
 
-        when (bts !! 4) $ pl .& Player.position' += V3 0 (3*dt) 0
-        when (bts !! 6) $ pl .& Player.position' -= V3 0 (3*dt) 0
+    whenM (keyPress KeyW) $ dir .- id += V2 0 1
+    whenM (keyPress KeyS) $ dir .- id -= V2 0 1
 
-        pl .^ Player.Move (play 0.0004 $ accel (V2 mx mz) ^* dt)
-        pl .^ Player.Turn (play 0.0004 $ accel (V2 px py) ^* dt)
-        
+    whenM (keyPress KeyA) $ dir .- id -= V2 1 0
+    whenM (keyPress KeyD) $ dir .- id += V2 1 0
+
+    v <- dir .- get
+
+    pl .^ Player.Move (v / 16)
+
     w <- world .- get
     psp <- pl .^ Player.GetPerspective
     pos <- pl .& use Player.position
-    return $ mconcat [psp $ mconcat [renderWorld pos w, miku], crosshair]
+    return $ mconcat [psp $ mconcat [renderWorld pos w], crosshair]
 
   stand

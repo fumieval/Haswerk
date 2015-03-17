@@ -1,4 +1,3 @@
-{-# LANGUAGE LambdaCase, Rank2Types #-}
 module Voxel where
 import Control.Lens
 import qualified Data.Map.Strict as Map

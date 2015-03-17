@@ -1,4 +1,3 @@
-{-# LANGUAGE LambdaCase #-}
 module Render where
 import World
 import Assets
@@ -14,7 +13,7 @@ crosshair = viewPicture $ translate (V2 320 240) $ bitmap _crosshair_png
 surfaceBitmap :: Bitmap -> [V2 Float] -> Surface -> Scene
 surfaceBitmap bmp uvs = \case
   SRear -> mk [V3 0 0 0, V3 1 0 0, V3 0 1 0, V3 1 1 0]
-  SLeft -> mk [V3 0 0 0, V3 0 0 1, V3 0 1 0, V3 0 1 1] 
+  SLeft -> mk [V3 0 0 0, V3 0 0 1, V3 0 1 0, V3 0 1 1]
   SRight -> mk [V3 1 0 0, V3 1 0 1, V3 1 1 0, V3 1 1 1]
   STop -> mk [V3 0 1 0, V3 1 1 0, V3 0 1 1, V3 1 1 1]
   SFront -> mk [V3 0 0 1, V3 1 0 1, V3 0 1 1, V3 1 1 1]

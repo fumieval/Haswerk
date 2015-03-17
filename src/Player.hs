@@ -1,6 +1,5 @@
-{-# LANGUAGE LambdaCase, TemplateHaskell, GADTs, TypeOperators #-}
 module Player where
-import Call.Sight
+import Call
 import Linear
 import Control.Lens
 import World
@@ -12,16 +11,18 @@ import qualified Data.Map as Map
 import Util
 import Data.List (minimumBy)
 import Data.Function (on)
-import Data.OpenUnion1.Clean
+import Data.Extensible
+import Control.Elevator
 
-data PlayerState = PlayerState
-  { _position :: V3 Float
-  , _position' :: V3 Float
-  , _velocity :: V3 Float
-  , _angleP :: V2 Float
-  , _focused :: Maybe (V3 Int, V3 Int)
-  }
-makeLenses ''PlayerState
+decFields [d|
+  type Position = V3 Float
+  type Position' = V3 Float
+  type Velocity = V3 Float
+  type AngleP = V2 Float
+  type Focused = Maybe (V3 Int, V3 Int)
+  |]
+
+type PlayerState = AllOf [Position, Position', Velocity, AngleP, Focused]
 
 data Actions a where
   Jump :: Actions ()
@@ -32,8 +33,13 @@ data Actions a where
   Update :: Float -> Actions ()
   GetPerspective :: Actions (Scene -> Sight)
 
-object :: Monad m => Object (State PlayerState |> Actions |> Nil) (StateT World m)
-object = sharing handle $ PlayerState (V3 0 2 0) (V3 0 2 0) zero zero Nothing where
+object :: Monad m => Object (Public PlayerState Actions) (StateT World m)
+object = sharing handle $ Position (V3 0 2 0)
+  <% Position' (V3 0 2 0)
+  <% Velocity zero
+  <% AngleP zero
+  <% Focused Nothing
+  <% Nil where
   handle :: Monad m => Actions a -> StateT PlayerState (StateT World m) a
   handle Jump = velocity += V3 0 0.5 0
   handle (Turn v) = angleP += v ^* 3
@@ -52,7 +58,6 @@ object = sharing handle $ PlayerState (V3 0 2 0) (V3 0 2 0) zero zero Nothing wh
     V2 dir elev <- use angleP
     -- playerPos' += vel
     -- playerVelocity += V3 0 (-0.07) 0
-
 
     position <~ use position'
 
