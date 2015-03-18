@@ -1,8 +1,10 @@
 module Voxel where
-import Control.Lens
+import BurningPrelude
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
-import Linear
+import qualified Data.Array as A
+import Util
+import Data.Witherable
 
 data Surface = STop | SBottom | SLeft | SRight | SFront | SRear deriving (Show, Eq, Ord)
 
@@ -20,22 +22,37 @@ fromSurface SRear = V3 0 0 (-1)
 neumann :: [V3 Int]
 neumann = [V3 0 0 1, V3 0 1 0, V3 1 0 0, V3 0 0 (-1), V3 0 (-1) 0, V3 (-1) 0 0]
 
-class Substantial a where
-  isOpaque :: a -> Bool
+type ChunkMap a = Map.Map (V3 Int) (A.Array (V3 Int) a)
 
-data VoxelWorld a = VoxelWorld !(Map.Map (V3 Int) a) !(Map.Map (V3 Int) (Set.Set Surface))
+newtype VoxelWorld a = VoxelWorld (ChunkMap (Maybe a))
 
-prepare :: V3 Int -> a -> [V3 Int] -> Map.Map (V3 Int) a -> Map.Map (V3 Int) a
-prepare v a = flip $ foldr (\d -> at (v + d) %~ maybe (Just a) Just)
+chunkSize :: Int
+chunkSize = 16
 
-voxelAt :: Substantial a => V3 Int -> Lens' (VoxelWorld a) (Maybe a)
-voxelAt v f (VoxelWorld m s) = f (Map.lookup v m) <&> \case
-  Nothing -> VoxelWorld (Map.delete v m) $ s
-    & Map.delete v
-    & flip (foldr (\d -> ix (v - fromSurface d) . contains d .~ True)) allSurfaces
-  Just a -> VoxelWorld (Map.insert v a m) $ s
-    & prepare v Set.empty neumann
-    & at v ?~ Set.fromList allSurfaces Set.\\ Set.fromList [s | s <- allSurfaces, b <- m ^.. ix (v + fromSurface s), isOpaque b]
-    & if isOpaque a then flip (foldr (\d -> ix (v - fromSurface d) . contains d .~ False)) allSurfaces else id
+chunkIx = (pure 0, pure (chunkSize - 1))
 
-emptyWorld = VoxelWorld Map.empty Map.empty
+voxelAt :: V3 Int -> Lens' (VoxelWorld a) (Maybe a)
+voxelAt v f (VoxelWorld m) = f (m ^? ix ch . ix i . _Just) <&> \b -> case m ^? ix ch of
+  Just c -> m & ix ch .~ (c & ix i .~ b) & VoxelWorld
+  Nothing -> m
+    & at ch ?~ A.accumArray (const id) Nothing chunkIx [(i, b)] -- insert
+    & VoxelWorld
+  where
+    (ch, i) = toChunkIndex v
+
+toChunkIndex = liftA2 (,) (fmap (`div` chunkSize)) (fmap (`mod` chunkSize))
+
+voxelIx :: V3 Int -> Traversal' (VoxelWorld a) a
+voxelIx v f (VoxelWorld m) = fmap VoxelWorld $ (ix ch . ix i . _Just $ f) m where
+  (ch, i) = toChunkIndex v
+
+emptyWorld :: VoxelWorld a
+emptyWorld = VoxelWorld Map.empty
+
+instance WitherableWithIndex (V3 Int, [Surface]) VoxelWorld where
+  iwither f (VoxelWorld m) = fmap VoxelWorld
+    $ ifor m $ \ch a -> fmap (A.listArray chunkIx)
+    $ for (A.assocs a) $ \(i, e) -> do
+      let ss = filter (\s -> hasn't (ix (i + fromSurface s) . _Just) a) allSurfaces
+      wither (f (ch * 16 + i, ss)) e
+

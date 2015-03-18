@@ -1,5 +1,5 @@
 module Assets where
-import Linear
+import BurningPrelude
 import Call
 import Data.Monoid
 import qualified Data.Vector.Storable as VS

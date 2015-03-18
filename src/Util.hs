@@ -1,12 +1,9 @@
 module Util where
-import Data.Foldable as F
-import Linear
+import BurningPrelude
 import Control.Object
 import Control.Elevator
-import Control.Monad.IO.Class
-import Control.Monad.Trans.State.Strict
-import Data.Functor.Identity
-import Control.Monad
+
+import qualified Data.Map as Map
 
 play :: Metric f => Float -> f Float -> f Float
 play t v
@@ -19,18 +16,12 @@ accel v = v ^* quadrance v ** 0.3
 spherical :: RealFloat a => a -> a -> V3 a
 spherical dir elev = V3 (sin dir * cos elev) (-sin elev) (-cos dir * cos elev)
 
-facing :: V3 Int -> V3 Float -> V3 Float -> V3 Float -> [(Float, (V3 Int, V3 Int))]
-facing b p dir n = [(norm (p - m), (b, fmap floor n))
-  | let nd = dot dir n
-  , nd < 0
-  , let m = p - dir ^* (abs (dot (b' + n ^* 0.5 - p) n) / nd)
-  , F.all ((<=0.50001) . abs) (m - b')
-  ]
-  where
-    b' = fmap fromIntegral b
+spherical' :: RealFloat a => V2 a -> V3 a
+spherical' (V2 dir elev) = spherical dir elev
 
-(.^) :: (Elevate f g, MonadIO m) => Instance g m -> f a -> m a
-i .^ f = i .- elevate f
+(.^) :: (MonadIO m) => Instance (Public s t) m -> t a -> m a
+i .^ f = i .- Operate f
+infixr 3 .^
 
 (.&) :: (MonadIO m) => Instance (Public s t) m -> StateT s m a -> m a
 i .& m = do
@@ -38,6 +29,8 @@ i .& m = do
   (a, s') <- runStateT m s
   i .- Stateful (put s')
   return a
+
+infixr 3 .&
 
 data Public s t a = Operate (t a) | Stateful (State s a)
 
@@ -49,3 +42,37 @@ sharing :: Monad m => (forall x. t x -> StateT s m x) -> s -> Object (Public s t
 sharing h s = Object $ \case
   Stateful m -> let (a, s') = runState m s in return (a, sharing h s')
   Operate t -> liftM (fmap (sharing h)) $ runStateT (h t) s
+
+class WitherableWithIndex i t | t -> i where
+  iwither :: Applicative f => (i -> a -> f (Maybe b)) -> t a -> f (t b)
+
+instance WitherableWithIndex i (Map.Map i) where
+  iwither f = fmap (Map.mapMaybe id) . itraverse f
+
+type WindLike f s a = (a -> f (Maybe a)) -> s -> f s
+
+-- | Send a message to mortals in a container.
+apprisesOf :: (Monad m, Monoid r) => WindLike (WriterT r m) s (Mortal f m b)
+  -> f a -> (a -> r) -> (b -> r) -> StateT s m r
+apprisesOf l f p q = StateT $ \t -> do
+  (t', res) <- runWriterT $ flip l t
+    $ \obj -> lift (runEitherT $ runMortal obj f) >>= \case
+      Left r -> writer (Nothing, q r)
+      Right (x, obj') -> writer (Just obj', p x)
+  return (res, t')
+
+type IndexedWindLike f i s a = (i -> a -> f (Maybe a)) -> s -> f s
+
+-- | Send a message to mortals in a container.
+iapprisesOf :: (Monad m, Monoid r) => IndexedWindLike (WriterT r m) i s (Mortal f m b)
+  -> f a -> (i -> a -> r) -> (i -> b -> r) -> StateT s m r
+iapprisesOf l f p q = StateT $ \t -> do
+  (t', res) <- runWriterT $ flip l t
+    $ \i obj -> lift (runEitherT $ runMortal obj f) >>= \case
+      Left r -> writer (Nothing, q i r)
+      Right (x, obj') -> writer (Just obj', p i x)
+  return (res, t')
+
+-- | Send a message to mortals in a container.
+iapprises :: (WitherableWithIndex i t, Monad m, Applicative m, Monoid r) => f a -> (i -> a -> r) -> (i -> b -> r) -> StateT (t (Mortal f m b)) m r
+iapprises = iapprisesOf iwither

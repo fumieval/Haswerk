@@ -1,16 +1,17 @@
+import BurningPrelude
 import Call
 import qualified Player
 import World
 import Render
-import Control.Monad.Trans
 import Util
-import Data.Monoid
 import Assets
-import Util
+import Voxel
 import Control.Lens
-import Control.Monad.State.Strict
 import Control.Elevator
-
+import qualified Block
+import qualified Data.Heap as Heap
+import Debug.Trace
+import Entity
 main = runCallDefault $ do
   setFPS 30
   disableCursor
@@ -28,7 +29,7 @@ main = runCallDefault $ do
       prevCursor .- put pos
     _ -> return ()
 
-  -- linkPicture $ \_ -> return $ translate (V2 320 240) $ bitmap _crosshair_png
+  linkPicture $ \_ -> return $ translate (V2 320 240) $ bitmap _crosshair_png
 
   linkGraphic $ \dt -> do
     pl .^ Player.Update dt
@@ -43,11 +44,38 @@ main = runCallDefault $ do
 
     v <- dir .- get
 
-    pl .^ Player.Move (v / 16)
+    pl .^ Player.Move (v ^* dt)
 
-    w <- world .- get
     psp <- pl .^ Player.GetPerspective
     pos <- pl .& use Player.position
-    return $ mconcat [psp $ mconcat [renderWorld pos w], crosshair]
+
+    ray <- pl .& uses Player.angleP spherical'
+
+    let mk i p s = let n = fromSurface s in
+          case penetration ray (p + n ^* 0.5 - pos) n of
+            Just k -> Heap.singleton $ Heap.Entry k (i, s)
+            Nothing -> Heap.empty
+
+    (sceneB, focusB) <- world .- do
+      zoom blocks $ iapprises Block.Render
+        (\(i, ss) a -> let p = fmap fromIntegral i in (translate p (foldMap a ss)
+        , flip foldMap ss $ mk i p))
+        mempty
+
+    case fmap (Heap.payload . fst) $ Heap.uncons focusB of
+      Just (i, s) -> pl .& Player.currentTarget .= TBlock i s
+      Nothing -> pl .& Player.currentTarget .= TNone
+
+    return $ psp (translate pos skybox <> sceneB)
 
   stand
+
+-- check whether the given ray passes through a 1*1 square
+penetration :: V3 Float -> V3 Float -> V3 Float -> Maybe Float
+penetration v p n = do
+  let c = dot v n
+  let ob = dot p n
+  let k = ob / c
+  guard (c < 0)
+  guard $ all (<=0.50001) $ abs $ p - k *^ v
+  return k
