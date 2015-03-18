@@ -55,9 +55,6 @@ object = sharing handle $ Position (V3 0 2 0)
     pos <- use position
     vel <- use velocity
     V2 dir elev <- use angleP
-    -- playerPos' += vel
-    -- playerVelocity += V3 0 (-0.07) 0
-
     position <~ use position'
   handle GetPerspective = do
     pos <- use position

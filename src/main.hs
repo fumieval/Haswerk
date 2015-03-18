@@ -13,6 +13,7 @@ import qualified Data.Heap as Heap
 import Debug.Trace
 import Entity
 import qualified Audiovisual.Text as Text
+import Text.Printf
 
 main = runCallDefault $ do
   setFPS 30
@@ -37,9 +38,9 @@ main = runCallDefault $ do
   linkPicture $ \_ -> return $ translate (V2 320 240) $ bitmap _crosshair_png
 
   linkPicture $ \_ -> do
-    t <- getSlowdown
+    t <- getFPS
 
-    return $ mconcat [translate (V2 40 40) $ text $ show $ floor $ t * 1000]
+    return $ mconcat [translate (V2 40 40) $ text $ printf "%.1f" t]
 
   linkGraphic $ \dt -> do
     pl .^ Player.Update dt
@@ -63,7 +64,7 @@ main = runCallDefault $ do
 
     let mk i p s = let n = fromSurface s in
           case penetration ray (p + n ^* 0.5 - pos) n of
-            Just k -> Heap.singleton $ Heap.Entry k (i, s)
+            Just k -> Heap.singleton $! Heap.Entry k (i, s)
             Nothing -> Heap.empty
 
     (sceneB, focusB) <- world .- do

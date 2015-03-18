@@ -14,4 +14,4 @@ newWorld = World genFloor
 
 genFloor = foldr (\(i, v) -> voxelAt i ?~ v)
   emptyWorld
-  [(V3 c d r, dirt) | c <- [-16..16], r <- [-16..16], d <- [-16..0]]
+  [(V3 c d r, dirt) | c <- [-16..16], r <- [-16..16], d <- [-2..0]]
