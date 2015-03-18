@@ -12,8 +12,11 @@ import qualified Block
 import qualified Data.Heap as Heap
 import Debug.Trace
 import Entity
+import qualified Audiovisual.Text as Text
+
 main = runCallDefault $ do
   setFPS 30
+
   disableCursor
   -- clearColor (V4 0 0 0 0)
   world <- new $ variable newWorld
@@ -29,7 +32,14 @@ main = runCallDefault $ do
       prevCursor .- put pos
     _ -> return ()
 
+  text <- Text.simple defaultFont 24
+
   linkPicture $ \_ -> return $ translate (V2 320 240) $ bitmap _crosshair_png
+
+  linkPicture $ \_ -> do
+    t <- getSlowdown
+
+    return $ mconcat [translate (V2 40 40) $ text $ show $ floor $ t * 1000]
 
   linkGraphic $ \dt -> do
     pl .^ Player.Update dt
@@ -57,10 +67,9 @@ main = runCallDefault $ do
             Nothing -> Heap.empty
 
     (sceneB, focusB) <- world .- do
-      zoom blocks $ iapprises Block.Render
-        (\(i, ss) a -> let p = fmap fromIntegral i in (translate p (foldMap a ss)
-        , flip foldMap ss $ mk i p))
-        mempty
+      zoom blocks $ flip (iapprises (Block.Render dt)) mempty $ \(i, ss) f ->
+        let !p = fmap fromIntegral i
+        in (translate p (foldMap f ss), foldMap (mk i p) ss)
 
     case fmap (Heap.payload . fst) $ Heap.uncons focusB of
       Just (i, s) -> pl .& Player.currentTarget .= TBlock i s
@@ -72,10 +81,12 @@ main = runCallDefault $ do
 
 -- check whether the given ray passes through a 1*1 square
 penetration :: V3 Float -> V3 Float -> V3 Float -> Maybe Float
-penetration v p n = do
-  let c = dot v n
-  let ob = dot p n
-  let k = ob / c
-  guard (c < 0)
-  guard $ all (<=0.50001) $ abs $ p - k *^ v
-  return k
+penetration v p n
+  | c < 0
+  , quadrance p < 8^2
+  , all (<=0.50001) $ abs $ p - k *^ v = Just k
+  | otherwise = Nothing
+  where
+    c = dot v n
+    ob = dot p n
+    k = ob / c

@@ -52,26 +52,26 @@ instance WitherableWithIndex i (Map.Map i) where
 type WindLike f s a = (a -> f (Maybe a)) -> s -> f s
 
 -- | Send a message to mortals in a container.
-apprisesOf :: (Monad m, Monoid r) => WindLike (WriterT r m) s (Mortal f m b)
+apprisesOf :: (Monad m, Monoid r) => WindLike (WriterT (Endo r) m) s (Mortal f m b)
   -> f a -> (a -> r) -> (b -> r) -> StateT s m r
 apprisesOf l f p q = StateT $ \t -> do
-  (t', res) <- runWriterT $ flip l t
+  (t', Endo res) <- runWriterT $ flip l t
     $ \obj -> lift (runEitherT $ runMortal obj f) >>= \case
-      Left r -> writer (Nothing, q r)
-      Right (x, obj') -> writer (Just obj', p x)
-  return (res, t')
+      Left r -> let !v = q r in writer (Nothing, Endo $ mappend v)
+      Right (x, obj') -> let !v = p x in writer (Just obj', Endo $ mappend v)
+  return (res mempty, t')
 
 type IndexedWindLike i f s a = (i -> a -> f (Maybe a)) -> s -> f s
 
 -- | Send a message to mortals in a container.
-iapprisesOf :: (Monad m, Monoid r) => IndexedWindLike i (WriterT r m) s (Mortal f m b)
+iapprisesOf :: (Monad m, Monoid r) => IndexedWindLike i (WriterT (Endo r) m) s (Mortal f m b)
   -> f a -> (i -> a -> r) -> (i -> b -> r) -> StateT s m r
 iapprisesOf l f p q = StateT $ \t -> do
-  (t', res) <- runWriterT $ flip l t
+  (t', Endo res) <- runWriterT $ flip l t
     $ \i obj -> lift (runEitherT $ runMortal obj f) >>= \case
-      Left r -> writer (Nothing, q i r)
-      Right (x, obj') -> writer (Just obj', p i x)
-  return (res, t')
+      Left r -> let !v = q i r in writer (Nothing, Endo $ mappend v)
+      Right (x, obj') -> let !v = p i x in writer (Just obj', Endo $ mappend v)
+  return (res mempty, t')
 
 -- | Send a message to mortals in a container.
 iapprises :: (WitherableWithIndex i t, Monad m, Applicative m, Monoid r) => f a -> (i -> a -> r) -> (i -> b -> r) -> StateT (t (Mortal f m b)) m r

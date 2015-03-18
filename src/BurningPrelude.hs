@@ -12,7 +12,8 @@ module BurningPrelude (module Prelude,
   module Data.Monoid,
   module Data.Functor.Identity,
   module Data.Function,
-  module Linear
+  module Linear,
+  swap
   ) where
 
 import Prelude hiding (sequence, sequence_, mapM, mapM_, concatMap, foldl, foldr, concat, or, and, elem, notElem, foldl1, foldr1, all, any, sum, product, minimum, maximum)
@@ -30,3 +31,4 @@ import Data.Function (on)
 import Data.Functor.Identity
 import Data.Monoid
 import Linear
+import Data.Tuple

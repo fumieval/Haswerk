@@ -18,6 +18,7 @@ fromSurface SLeft = V3 (-1) 0 0
 fromSurface SRight = V3 1 0 0
 fromSurface SFront = V3 0 0 1
 fromSurface SRear = V3 0 0 (-1)
+{-# INLINE fromSurface #-}
 
 neumann :: [V3 Int]
 neumann = [V3 0 0 1, V3 0 1 0, V3 1 0 0, V3 0 0 (-1), V3 0 (-1) 0, V3 (-1) 0 0]
@@ -40,19 +41,22 @@ voxelAt v f (VoxelWorld m) = f (m ^? ix ch . ix i . _Just) <&> \b -> case m ^? i
   where
     (ch, i) = toChunkIndex v
 
+toChunkIndex :: V3 Int -> (V3 Int, V3 Int)
 toChunkIndex = liftA2 (,) (fmap (`div` chunkSize)) (fmap (`mod` chunkSize))
+{-# INLINE toChunkIndex #-}
 
 voxelIx :: V3 Int -> Traversal' (VoxelWorld a) a
 voxelIx v f (VoxelWorld m) = fmap VoxelWorld $ (ix ch . ix i . _Just $ f) m where
   (ch, i) = toChunkIndex v
+{-# INLINE voxelIx #-}
 
 emptyWorld :: VoxelWorld a
 emptyWorld = VoxelWorld Map.empty
 
 instance WitherableWithIndex (V3 Int, [Surface]) VoxelWorld where
   iwither f (VoxelWorld m) = fmap VoxelWorld
-    $ ifor m $ \ch a -> fmap (A.listArray chunkIx)
-    $ for (A.assocs a) $ \(i, e) -> do
-      let ss = filter (\s -> hasn't (ix (i + fromSurface s) . _Just) a) allSurfaces
-      wither (f (ch * 16 + i, ss)) e
-
+    $ ifor m $ \ch !a -> fmap (A.listArray chunkIx)
+    $ for (A.assocs a) $ \(!i, me) -> case me of
+      Nothing -> pure Nothing
+      Just e -> let ss = filter (\s -> hasn't (ix (i + fromSurface s) . _Just) a) allSurfaces
+        in f (ch * 16 + i, ss) e
