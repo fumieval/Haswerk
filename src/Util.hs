@@ -61,10 +61,10 @@ apprisesOf l f p q = StateT $ \t -> do
       Right (x, obj') -> writer (Just obj', p x)
   return (res, t')
 
-type IndexedWindLike f i s a = (i -> a -> f (Maybe a)) -> s -> f s
+type IndexedWindLike i f s a = (i -> a -> f (Maybe a)) -> s -> f s
 
 -- | Send a message to mortals in a container.
-iapprisesOf :: (Monad m, Monoid r) => IndexedWindLike (WriterT r m) i s (Mortal f m b)
+iapprisesOf :: (Monad m, Monoid r) => IndexedWindLike i (WriterT r m) s (Mortal f m b)
   -> f a -> (i -> a -> r) -> (i -> b -> r) -> StateT s m r
 iapprisesOf l f p q = StateT $ \t -> do
   (t', res) <- runWriterT $ flip l t
