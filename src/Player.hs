@@ -47,10 +47,12 @@ object = sharing handle $ Position (V3 0 2 0)
     position' += (V3 (angle dir) 0 (-perp (angle dir)) !* v) ^* 4
   handle Attack = use currentTarget >>= \case
     TNone -> return ()
-    TBlock p _ -> lift $ apprisesOf (blocks . voxelAt p . wither) (Block.Damage 1) mempty mempty
+    TBlock p _ -> lift $ do
+      () <- apprisesOf (blocks . at p . wither) (Block.Damage 1) mempty mempty
+      causeBlockUpdate p
   handle Act = use currentTarget >>= \case
     TNone -> return ()
-    TBlock p s -> lift $ blocks . voxelAt (p + fromSurface s) ?= Block.stoneBrick
+    TBlock p s -> lift $ placeBlock (p + fromSurface s) Block.stoneBrick
   handle (Update dt) = do
     pos <- use position
     vel <- use velocity

@@ -2,7 +2,7 @@ module Util where
 import BurningPrelude
 import Control.Object
 import Control.Elevator
-
+import Control.Monad.Catch
 import qualified Data.Map as Map
 
 play :: Metric f => Float -> f Float -> f Float
@@ -19,11 +19,11 @@ spherical dir elev = V3 (sin dir * cos elev) (-sin elev) (-cos dir * cos elev)
 spherical' :: RealFloat a => V2 a -> V3 a
 spherical' (V2 dir elev) = spherical dir elev
 
-(.^) :: (MonadIO m) => Instance (Public s t) m -> t a -> m a
+(.^) :: (MonadIO m, MonadMask m) => Instance (Public s t) m -> t a -> m a
 i .^ f = i .- Operate f
 infixr 3 .^
 
-(.&) :: (MonadIO m) => Instance (Public s t) m -> StateT s m a -> m a
+(.&) :: (MonadIO m, MonadMask m) => Instance (Public s t) m -> StateT s m a -> m a
 i .& m = do
   s <- i .- Stateful get
   (a, s') <- runStateT m s
@@ -42,37 +42,3 @@ sharing :: Monad m => (forall x. t x -> StateT s m x) -> s -> Object (Public s t
 sharing h s = Object $ \case
   Stateful m -> let (a, s') = runState m s in return (a, sharing h s')
   Operate t -> liftM (fmap (sharing h)) $ runStateT (h t) s
-
-class WitherableWithIndex i t | t -> i where
-  iwither :: Applicative f => (i -> a -> f (Maybe b)) -> t a -> f (t b)
-
-instance WitherableWithIndex i (Map.Map i) where
-  iwither f = fmap (Map.mapMaybe id) . itraverse f
-
-type WindLike f s a = (a -> f (Maybe a)) -> s -> f s
-
--- | Send a message to mortals in a container.
-apprisesOf :: (Monad m, Monoid r) => WindLike (WriterT (Endo r) m) s (Mortal f m b)
-  -> f a -> (a -> r) -> (b -> r) -> StateT s m r
-apprisesOf l f p q = StateT $ \t -> do
-  (t', Endo res) <- runWriterT $ flip l t
-    $ \obj -> lift (runEitherT $ runMortal obj f) >>= \case
-      Left r -> let !v = q r in writer (Nothing, Endo $ mappend v)
-      Right (x, obj') -> let !v = p x in writer (Just obj', Endo $ mappend v)
-  return (res mempty, t')
-
-type IndexedWindLike i f s a = (i -> a -> f (Maybe a)) -> s -> f s
-
--- | Send a message to mortals in a container.
-iapprisesOf :: (Monad m, Monoid r) => IndexedWindLike i (WriterT (Endo r) m) s (Mortal f m b)
-  -> f a -> (i -> a -> r) -> (i -> b -> r) -> StateT s m r
-iapprisesOf l f p q = StateT $ \t -> do
-  (t', Endo res) <- runWriterT $ flip l t
-    $ \i obj -> lift (runEitherT $ runMortal obj f) >>= \case
-      Left r -> let !v = q i r in writer (Nothing, Endo $ mappend v)
-      Right (x, obj') -> let !v = p i x in writer (Just obj', Endo $ mappend v)
-  return (res mempty, t')
-
--- | Send a message to mortals in a container.
-iapprises :: (WitherableWithIndex i t, Monad m, Applicative m, Monoid r) => f a -> (i -> a -> r) -> (i -> b -> r) -> StateT (t (Mortal f m b)) m r
-iapprises = iapprisesOf iwither

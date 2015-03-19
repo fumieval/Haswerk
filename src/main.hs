@@ -10,10 +10,13 @@ import Control.Lens
 import Control.Elevator
 import qualified Block
 import qualified Data.Heap as Heap
+import qualified Data.Map as Map
 import Debug.Trace
 import Entity
 import qualified Audiovisual.Text as Text
 import Text.Printf
+import Control.Concurrent
+import Data.Witherable
 
 main = runCallDefault $ do
   setFPS 30
@@ -42,6 +45,8 @@ main = runCallDefault $ do
 
     return $ mconcat [translate (V2 40 40) $ text $ printf "%.1f" t]
 
+  rendered <- new $ variable Map.empty
+
   linkGraphic $ \dt -> do
     pl .^ Player.Update dt
 
@@ -62,23 +67,49 @@ main = runCallDefault $ do
 
     ray <- pl .& uses Player.angleP spherical'
 
-    let mk i p s = let n = fromSurface s in
-          case penetration ray (p + n ^* 0.5 - pos) n of
+    let mk i s = let n = fromSurface s in
+          case penetration ray (fmap fromIntegral i + n ^* 0.5 - pos) n of
             Just k -> Heap.singleton $! Heap.Entry k (i, s)
             Nothing -> Heap.empty
 
-    (sceneB, focusB) <- world .- do
-      zoom blocks $ flip (iapprises (Block.Render dt)) mempty $ \(i, ss) f ->
-        let !p = fmap fromIntegral i
-        in (translate p (foldMap f ss), foldMap (mk i p) ss)
+    focusB <- world .- do
+      iuses (blocks . _VoxelWorld . ifolded <. _2)
+        $ \i ss -> foldMap (mk i) (unfoldSurfaces ss)
 
     case fmap (Heap.payload . fst) $ Heap.uncons focusB of
       Just (i, s) -> pl .& Player.currentTarget .= TBlock i s
       Nothing -> pl .& Player.currentTarget .= TNone
 
+    sceneB <- rendered .- use folded
+
     return $ psp (translate pos skybox <> sceneB)
 
+  forkIO $ forever $ world .- uses blockUpdate Heap.uncons >>= \case
+    Nothing -> wait 0.01
+    Just (Heap.Entry _ v, bu) -> do
+      world .- blockUpdate .= bu
+      world .- apprisesOf (blocks . at v . wither)
+        (Block.Render (1/60))
+        Alive
+        (const Dead)
+        >>= \case
+          Impossible -> rendered .- at v .= Nothing
+          Dead -> do
+            rendered .- at v .= Nothing
+            world .- forM_ neumann (causeBlockUpdate . (+v))
+          Alive f -> do
+            s <- world .- uses (blocks . to (surfaces v)) (foldMap f)
+            rendered .- at v ?= translate (fmap fromIntegral v) s
+
   stand
+
+data ForOne a b = Alive a | Dead | Impossible
+
+instance Monoid (ForOne a b) where
+  mempty = Impossible
+  mappend Impossible a = a
+  mappend a Impossible = a
+  mappend _ _ = Impossible
 
 -- check whether the given ray passes through a 1*1 square
 penetration :: V3 Float -> V3 Float -> V3 Float -> Maybe Float

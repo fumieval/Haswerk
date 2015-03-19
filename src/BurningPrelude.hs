@@ -6,6 +6,7 @@ module BurningPrelude (module Prelude,
   module Control.Monad.Trans.Either,
   module Control.Monad.Trans,
   module Control.Monad.IO.Class,
+  module Control.Monad.State.Class,
   module Control.Monad.Trans.State.Strict,
   module Control.Monad.Trans.Writer.Strict,
   module Control.Lens,
@@ -24,7 +25,8 @@ import Control.Monad hiding (sequence, sequence_, mapM, mapM_, forM, forM_, msum
 import Control.Monad.Trans.Either
 import Control.Monad.Trans
 import Control.Monad.IO.Class
-import Control.Monad.Trans.State.Strict hiding (liftCallCC, liftCatch)
+import Control.Monad.State.Class
+import Control.Monad.Trans.State.Strict hiding (liftCallCC, liftCatch, get, put, state, modify, modify', gets)
 import Control.Monad.Trans.Writer.Strict hiding (liftCallCC, liftCatch)
 import Control.Lens
 import Data.Function (on)

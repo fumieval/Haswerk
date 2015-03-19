@@ -7,14 +7,20 @@ import Util
 import Data.Witherable
 import Control.DeepSeq
 import Data.Bits
+import Data.Bits.Lens
+import Data.Word
+import Data.Maybe (isNothing)
+import Debug.Trace
 
-data Surface = STop | SBottom | SLeft | SRight | SFront | SRear deriving (Show, Eq, Ord)
+data Surface = STop | SBottom | SLeft | SRight | SFront | SRear deriving (Show, Eq, Ord, Enum)
 
 instance NFData Surface where
   rnf _ = ()
 
 allSurfaces :: [Surface]
 allSurfaces = [STop, SBottom, SLeft, SRight, SFront, SRear]
+
+newtype Surfaces = Surfaces Word8 deriving (Show, Eq, Ord)
 
 fromSurface :: Num a => Surface -> V3 a
 fromSurface STop = V3 0 1 0
@@ -28,48 +34,36 @@ fromSurface SRear = V3 0 0 (-1)
 neumann :: [V3 Int]
 neumann = [V3 0 0 1, V3 0 1 0, V3 1 0 0, V3 0 0 (-1), V3 0 (-1) 0, V3 (-1) 0 0]
 
-type ChunkMap a = Map.Map (V3 Int) (V.Vector a)
+type instance Index (VoxelWorld a) = V3 Int
+type instance IxValue (VoxelWorld a) = a
 
-newtype VoxelWorld a = VoxelWorld (ChunkMap (Maybe a))
+newtype VoxelWorld a = VoxelWorld (Map.Map (V3 Int) (a, Surfaces))
 
-chunkSize :: Int
-chunkSize = 8
+makePrisms ''VoxelWorld
 
-voxelAt :: V3 Int -> Lens' (VoxelWorld a) (Maybe a)
-voxelAt v f (VoxelWorld m) = f (m ^? ix ch . ix i . _Just) <&> \b -> case m ^? ix ch of
-  Just c -> m & ix ch .~ (c & ix i .~ b) & VoxelWorld
-  Nothing -> m
-    & at ch ?~ V.generate (chunkSize*chunkSize*chunkSize) (\j -> if i == j then b else Nothing)
+instance Ixed (VoxelWorld a) where
+  ix v f (VoxelWorld m) = fmap VoxelWorld (ix v (_1 f) m)
+
+instance At (VoxelWorld a) where
+  at v f (VoxelWorld m) = f (m ^? ix v . _1) <&> \b -> m
+    & at v .~ fmap (,Surfaces ss) b
+    & fill v (isNothing b)
     & VoxelWorld
-  where
-    (ch, i) = toChunkIndex v
+    where
+      ss = foldr (\s -> bitAt (fromEnum s) .~ hasn't (ix (v + fromSurface s)) m) 0 allSurfaces
 
-chunkIndex :: Iso' (V3 Int) Int
-chunkIndex = iso go back where
-  go (V3 a b c) = ((a * chunkSize) + b) * chunkSize + c
-  {-# INLINE go #-}
-  back n = let (m, c) = divMod n chunkSize
-               (a, b) = divMod m chunkSize
-            in V3 a b c
-  {-# INLINE back #-}
-{-# INLINE chunkIndex #-}
+fill v b m = foldr (\s -> ix (v - fromSurface s) . _2 . contains s .~ b) m allSurfaces
 
-toChunkIndex :: V3 Int -> (V3 Int, Int)
-toChunkIndex v = (fmap (`div` chunkSize) v, fmap (`mod` chunkSize) v ^. chunkIndex)
-{-# INLINE toChunkIndex #-}
+type instance Index Surfaces = Surface
 
-voxelIx :: V3 Int -> Traversal' (VoxelWorld a) a
-voxelIx v f (VoxelWorld m) = fmap VoxelWorld $ (ix ch . ix i . _Just $ f) m where
-  (ch, i) = toChunkIndex v
-{-# INLINE voxelIx #-}
+instance Contains Surfaces where
+  contains s f (Surfaces w) = fmap Surfaces $ bitAt (fromEnum s) f w
+
+unfoldSurfaces :: Surfaces -> [Surface]
+unfoldSurfaces w = filter (\s -> w ^. contains s) allSurfaces
+
+surfaces :: V3 Int -> VoxelWorld a -> [Surface]
+surfaces v (VoxelWorld m) = m ^.. ix v . _2 . to unfoldSurfaces . folded
 
 emptyWorld :: VoxelWorld a
 emptyWorld = VoxelWorld Map.empty
-
-instance WitherableWithIndex (V3 Int, [Surface]) VoxelWorld where
-  iwither f (VoxelWorld m) = fmap VoxelWorld
-    $ ifor m $ \ch !vec -> ifor vec $ \i me -> case me of
-      Nothing -> pure Nothing
-      Just e -> let !p = fmap (`shiftL`3) ch + review chunkIndex i
-                    ss = filter (\s -> hasn't (ix (i + fromSurface s ^. chunkIndex) . _Just) vec) allSurfaces
-                in f (p, ss) e
