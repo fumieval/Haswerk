@@ -38,7 +38,8 @@ instance Tower (Public s t) where
   type Floors (Public s t) = '[State s, t]
   stairs = Stateful `rung` Operate `rung` Nil
 
-sharing :: Monad m => (forall x. t x -> StateT s m x) -> s -> Object (Public s t) m
-sharing h s = Object $ \case
-  Stateful m -> let (a, s') = runState m s in return (a, sharing h s')
-  Operate t -> liftM (fmap (sharing h)) $ runStateT (h t) s
+sharing :: Monad m => s -> (forall x. t x -> StateT s m x) -> Object (Public s t) m
+sharing s0 h = go s0 where
+  go s = Object $ \case
+    Stateful m -> return $ fmap go (runState m s)
+    Operate t -> liftM (fmap go) $ runStateT (h t) s

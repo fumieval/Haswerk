@@ -10,7 +10,7 @@ import Control.Lens
 import Control.Elevator
 import qualified Block
 import qualified Data.Heap as Heap
-import qualified Data.Map as Map
+import qualified Data.Map.Strict as Map
 import Debug.Trace
 import Entity
 import qualified Audiovisual.Text as Text
@@ -57,6 +57,9 @@ main = runCallDefault $ do
 
     whenM (keyPress KeyA) $ dir .- id -= V2 1 0
     whenM (keyPress KeyD) $ dir .- id += V2 1 0
+    whenM (keyPress KeySpace) $ pl .& Player.position' += V3 0 0.1 0
+    whenM (keyPress KeyLeftShift) $ pl .& Player.position' -= V3 0 0.1 0
+
 
     v <- dir .- get
 
@@ -71,7 +74,7 @@ main = runCallDefault $ do
           case penetration ray (fmap fromIntegral i + n ^* 0.5 - pos) n of
             Just k -> Heap.singleton $! Heap.Entry k (i, s)
             Nothing -> Heap.empty
-
+    {-
     focusB <- world .- do
       iuses (blocks . _VoxelWorld . ifolded <. _2)
         $ \i ss -> foldMap (mk i) (unfoldSurfaces ss)
@@ -79,10 +82,10 @@ main = runCallDefault $ do
     case fmap (Heap.payload . fst) $ Heap.uncons focusB of
       Just (i, s) -> pl .& Player.currentTarget .= TBlock i s
       Nothing -> pl .& Player.currentTarget .= TNone
-
+    -}
     sceneB <- rendered .- use folded
 
-    return $ psp (translate pos skybox <> sceneB)
+    return $ psp (translate pos skybox <> sceneB <> line [V3 0 0 0, V3 0 0 1])
 
   forkIO $ forever $ world .- uses blockUpdate Heap.uncons >>= \case
     Nothing -> wait 0.01
@@ -98,7 +101,7 @@ main = runCallDefault $ do
             rendered .- at v .= Nothing
             world .- forM_ neumann (causeBlockUpdate . (+v))
           Alive f -> do
-            s <- world .- uses (blocks . to (surfaces v)) (foldMap f)
+            !s <- world .- uses (blocks . to (surfaces v)) (foldMap f)
             rendered .- at v ?= translate (fmap fromIntegral v) s
 
   stand

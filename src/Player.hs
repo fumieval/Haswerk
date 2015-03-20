@@ -33,35 +33,36 @@ data Actions a where
   GetPerspective :: Actions (Scene -> Sight)
 
 object :: Object (Public PlayerState Actions) (StateT World IO)
-object = sharing handle $ Position (V3 0 2 0)
-  <% Position' (V3 0 2 0)
-  <% Velocity zero
-  <% AngleP zero
-  <% CurrentTarget TNone
-  <% Nil where
-  handle :: Actions a -> StateT PlayerState (StateT World IO) a
-  handle Jump = velocity += V3 0 0.5 0
-  handle (Turn v) = angleP += v ^* 3
-  handle (Move v) = do
+object = sharing initial $ \case
+  Jump -> velocity += V3 0 0.5 0
+  Turn v -> angleP += v ^* 3
+  Move v　-> do
     V2 dir _ <- use angleP
     position' += (V3 (angle dir) 0 (-perp (angle dir)) !* v) ^* 4
-  handle Attack = use currentTarget >>= \case
+  Attack -> use currentTarget >>= \case
     TNone -> return ()
     TBlock p _ -> lift $ do
       () <- apprisesOf (blocks . at p . wither) (Block.Damage 1) mempty mempty
       causeBlockUpdate p
-  handle Act = use currentTarget >>= \case
+  Act -> use currentTarget >>= \case
     TNone -> return ()
     TBlock p s -> lift $ placeBlock (p + fromSurface s) Block.stoneBrick
-  handle (Update dt) = do
+  Update dt -> do
     pos <- use position
     vel <- use velocity
     V2 dir elev <- use angleP
     position <~ use position'
-  handle GetPerspective = do
+  GetPerspective -> do
     pos <- use position
     V2 dir elev <- use angleP
     return $ viewScene (pi / 4) 1 200
       . rotateOn (V3 elev 0 0)
       . rotateOn (V3 0 dir 0)
       . translate (-pos)
+  where
+    initial = Position (V3 0 2 0)
+      <% Position' (V3 0 2 0)
+      <% Velocity zero
+      <% AngleP zero
+      <% CurrentTarget TNone
+      <% Nil
