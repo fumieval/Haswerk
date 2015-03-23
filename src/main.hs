@@ -81,7 +81,7 @@ main = runCall FullScreen (Box (V2 0 0) (V2 640 480)) $ do
 
     w <- world .- use blocks
     let focusB = foldMap (\i -> foldMap (mk i) (surfaces i w))
-          $ Set.fromList [fmap floor (pos + ray ^* (k * sqrt 3)) + n | k <- [0..8], n <- neumann]
+          $ Set.fromList [fmap floor (pos + ray ^* k) + V3 x y z | k <- [0, sqrt 3..8], x <- [-1..1], y <- [-1..1], z <- [-1..1]]
 
     case fmap (Heap.payload . fst) $ Heap.uncons focusB of
       Just (i, s) -> pl .& Player.currentTarget .= TBlock i s
