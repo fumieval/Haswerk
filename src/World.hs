@@ -13,7 +13,7 @@ data World = World
 makeLenses ''World
 
 newWorld = flip execState (World emptyWorld Heap.empty)
-  $ for_ [(V3 c d r, dirt) | c <- [-32..31], r <- [-32..31], d <- [-15..0]]
+  $ for_ [(V3 c d r, dirt) | c <- [-16..15], r <- [-16..15], d <- [-15..0]]
   $ \(i, b) -> placeBlock i b
 
 causeBlockUpdate :: (MonadState World m) => V3 Int -> m ()

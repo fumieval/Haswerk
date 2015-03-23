@@ -5,6 +5,15 @@ import Control.Elevator
 import Control.Monad.Catch
 import qualified Data.Map as Map
 
+-- | Maybe-like monoid to fold 0 or 1 elements
+data ForOne a = Alive a | Dead | Impossible
+
+instance Monoid (ForOne a) where
+  mempty = Impossible
+  mappend Impossible a = a
+  mappend a Impossible = a
+  mappend _ _ = Impossible
+
 play :: Metric f => Float -> f Float -> f Float
 play t v
   | quadrance v < t*t = zero
@@ -12,12 +21,6 @@ play t v
 
 accel :: V2 Float -> V2 Float
 accel v = v ^* quadrance v ** 0.3
-
-spherical :: RealFloat a => a -> a -> V3 a
-spherical dir elev = V3 (sin dir * cos elev) (-sin elev) (-cos dir * cos elev)
-
-spherical' :: RealFloat a => V2 a -> V3 a
-spherical' (V2 dir elev) = spherical dir elev
 
 (.^) :: (MonadIO m, MonadMask m) => Instance (Public s t) m -> t a -> m a
 i .^ f = i .- Operate f
@@ -38,8 +41,8 @@ instance Tower (Public s t) where
   type Floors (Public s t) = '[State s, t]
   stairs = Stateful `rung` Operate `rung` Nil
 
-sharing :: Monad m => s -> (forall x. t x -> StateT s m x) -> Object (Public s t) m
-sharing s0 h = go s0 where
+(&@~) :: Monad m => s -> (forall x. t x -> StateT s m x) -> Object (Public s t) m
+s0 &@~ h = go s0 where
   go s = Object $ \case
     Stateful m -> return $ fmap go (runState m s)
     Operate t -> liftM (fmap go) $ runStateT (h t) s

@@ -32,8 +32,11 @@ data Actions a where
   Update :: Float -> Actions ()
   GetPerspective :: Actions (Scene -> Sight)
 
+onState :: forall s t m. Monad m => s -> (forall x. t x -> StateT s m x) -> Object t m
+onState s h = stateful h s
+
 object :: Object (Public PlayerState Actions) (StateT World IO)
-object = sharing initial $ \case
+object = initial &@~ \case
   Jump -> velocity += V3 0 0.5 0
   Turn v -> angleP += v ^* 3
   Move v　-> do
@@ -59,10 +62,10 @@ object = sharing initial $ \case
       . rotateOn (V3 elev 0 0)
       . rotateOn (V3 0 dir 0)
       . translate (-pos)
-  where
-    initial = Position (V3 0 2 0)
-      <% Position' (V3 0 2 0)
-      <% Velocity zero
-      <% AngleP zero
-      <% CurrentTarget TNone
-      <% Nil
+
+initial = Position (V3 0 2 0)
+  <% Position' (V3 0 2 0)
+  <% Velocity zero
+  <% AngleP zero
+  <% CurrentTarget TNone
+  <% Nil

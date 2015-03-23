@@ -3,6 +3,7 @@ import Call
 import qualified Player
 import World
 import Render
+import Geometry
 import Util
 import Assets
 import Voxel
@@ -11,14 +12,16 @@ import Control.Elevator
 import qualified Block
 import qualified Data.Heap as Heap
 import qualified Data.Map.Strict as Map
+import qualified Data.Set as Set
 import Debug.Trace
 import Entity
 import qualified Audiovisual.Text as Text
 import Text.Printf
 import Control.Concurrent
 import Data.Witherable
+import Data.BoundingBox (Box(..))
 
-main = runCallDefault $ do
+main = runCall FullScreen (Box (V2 0 0) (V2 640 480)) $ do
   setFPS 30
 
   disableCursor
@@ -68,21 +71,22 @@ main = runCallDefault $ do
     psp <- pl .^ Player.GetPerspective
     pos <- pl .& use Player.position
 
+    -- |ray| == 1
     ray <- pl .& uses Player.angleP spherical'
 
     let mk i s = let n = fromSurface s in
           case penetration ray (fmap fromIntegral i + n ^* 0.5 - pos) n of
             Just k -> Heap.singleton $! Heap.Entry k (i, s)
             Nothing -> Heap.empty
-    {-
-    focusB <- world .- do
-      iuses (blocks . _VoxelWorld . ifolded <. _2)
-        $ \i ss -> foldMap (mk i) (unfoldSurfaces ss)
+
+    w <- world .- use blocks
+    let focusB = foldMap (\i -> foldMap (mk i) (surfaces i w))
+          $ Set.fromList [fmap floor (pos + ray ^* (k * sqrt 3)) + n | k <- [0..8], n <- neumann]
 
     case fmap (Heap.payload . fst) $ Heap.uncons focusB of
       Just (i, s) -> pl .& Player.currentTarget .= TBlock i s
       Nothing -> pl .& Player.currentTarget .= TNone
-    -}
+
     sceneB <- rendered .- use folded
 
     return $ psp (translate pos skybox <> sceneB <> line [V3 0 0 0, V3 0 0 1])
@@ -103,25 +107,3 @@ main = runCallDefault $ do
           Alive f -> do
             !s <- world .- uses (blocks . to (surfaces v)) (foldMap f)
             rendered .- at v ?= translate (fmap fromIntegral v) s
-
-  stand
-
-data ForOne a b = Alive a | Dead | Impossible
-
-instance Monoid (ForOne a b) where
-  mempty = Impossible
-  mappend Impossible a = a
-  mappend a Impossible = a
-  mappend _ _ = Impossible
-
--- check whether the given ray passes through a 1*1 square
-penetration :: V3 Float -> V3 Float -> V3 Float -> Maybe Float
-penetration v p n
-  | c < 0
-  , quadrance p < 8^2
-  , all (<=0.50001) $ abs $ p - k *^ v = Just k
-  | otherwise = Nothing
-  where
-    c = dot v n
-    ob = dot p n
-    k = ob / c
