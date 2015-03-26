@@ -68,7 +68,6 @@ main = runCall FullScreen (Box (V2 0 0) (V2 640 480)) $ do
 
     pl .^ Player.Move (v ^* dt)
 
-    psp <- pl .^ Player.GetPerspective
     pos <- pl .& use Player.position
 
     -- |ray| == 1
@@ -76,20 +75,20 @@ main = runCall FullScreen (Box (V2 0 0) (V2 640 480)) $ do
 
     let mk i s = let n = fromSurface s in
           case penetration ray (fmap fromIntegral i + n ^* 0.5 - pos) n of
-            Just k -> Heap.singleton $! Heap.Entry k (i, s)
-            Nothing -> Heap.empty
+            Just k -> Min $ Just $ Heap.Entry k (i, s)
+            Nothing -> mempty
 
     w <- world .- use blocks
-    let focusB = foldMap (\i -> foldMap (mk i) (surfaces i w))
-          $ Set.fromList [fmap floor (pos + ray ^* k) + V3 x y z | k <- [0, sqrt 3..8], x <- [-1..1], y <- [-1..1], z <- [-1..1]]
 
-    case fmap (Heap.payload . fst) $ Heap.uncons focusB of
-      Just (i, s) -> pl .& Player.currentTarget .= TBlock i s
+    case getMin $ foldMap (\i -> foldMap (mk i) (surfaces i w))
+          $ Set.fromList [fmap floor (pos + ray ^* k) + V3 x y z
+            | k <- [0, sqrt 3..8], x <- [-1..1], y <- [-1..1], z <- [-1..1]] of
+      Just (Heap.Entry _ (i, s)) -> pl .& Player.currentTarget .= TBlock i s
       Nothing -> pl .& Player.currentTarget .= TNone
 
-    sceneB <- rendered .- use folded
-
-    return $ psp (translate pos skybox <> sceneB <> line [V3 0 0 0, V3 0 0 1])
+    s <- rendered .- use folded
+    psp <- pl .^ Player.GetPerspective
+    return $ psp (translate pos skybox <> s <> line [V3 0 0 0, V3 0 0 1])
 
   forkIO $ forever $ world .- uses blockUpdate Heap.uncons >>= \case
     Nothing -> wait 0.01

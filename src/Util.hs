@@ -14,6 +14,14 @@ instance Monoid (ForOne a) where
   mappend a Impossible = a
   mappend _ _ = Impossible
 
+newtype Min a = Min { getMin :: Maybe a }
+
+instance Ord a => Monoid (Min a) where
+  mempty = Min Nothing
+  mappend (Min Nothing) a = a
+  mappend a (Min Nothing) = a
+  mappend (Min (Just a)) (Min (Just b)) = Min (Just (min a b))
+
 play :: Metric f => Float -> f Float -> f Float
 play t v
   | quadrance v < t*t = zero

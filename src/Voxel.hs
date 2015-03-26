@@ -1,6 +1,6 @@
 module Voxel where
 import BurningPrelude
-import qualified Data.Map.Strict as Map
+import qualified Data.HashMap.Strict as Map
 import qualified Data.Set as Set
 import qualified Data.Vector as V
 import Util
