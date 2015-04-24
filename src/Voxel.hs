@@ -37,7 +37,7 @@ neumann = [V3 0 0 1, V3 0 1 0, V3 1 0 0, V3 0 0 (-1), V3 0 (-1) 0, V3 (-1) 0 0]
 type instance Index (VoxelWorld a) = V3 Int
 type instance IxValue (VoxelWorld a) = a
 
-newtype VoxelWorld a = VoxelWorld (Map.Map (V3 Int) (a, Surfaces))
+newtype VoxelWorld a = VoxelWorld (Map.HashMap (V3 Int) (a, Surfaces))
 
 makePrisms ''VoxelWorld
 
@@ -60,7 +60,7 @@ instance Contains Surfaces where
   contains s f (Surfaces w) = fmap Surfaces $ bitAt (fromEnum s) f w
 
 unfoldSurfaces :: Surfaces -> [Surface]
-unfoldSurfaces w = filter (\s -> w ^. contains s) allSurfaces
+unfoldSurfaces w = BurningPrelude.filter (\s -> w ^. contains s) allSurfaces
 
 surfaces :: V3 Int -> VoxelWorld a -> [Surface]
 surfaces v (VoxelWorld m) = m ^.. ix v . _2 . to unfoldSurfaces . folded

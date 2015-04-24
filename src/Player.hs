@@ -19,9 +19,10 @@ decFields [d|
   type Velocity = V3 Float
   type AngleP = V2 Float
   type CurrentTarget = Target
+  type AngleV = V2 Float
   |]
 
-type PlayerState = AllOf [Position, Position', Velocity, AngleP, CurrentTarget]
+type PlayerState = AllOf [Position, Position', Velocity, AngleP, CurrentTarget, AngleV]
 
 data Actions a where
   Jump :: Actions ()
@@ -38,7 +39,11 @@ onState s h = stateful h s
 object :: Object (Public PlayerState Actions) (StateT World IO)
 object = initial &@~ \case
   Jump -> velocity += V3 0 0.5 0
-  Turn v -> angleP += v ^* 3
+  Turn d -> do
+    angleV += d
+    v <- use angleV
+    p <- use angleP
+    angleP += (v - p) * 0.5
   Move v　-> do
     V2 dir _ <- use angleP
     position' += (V3 (angle dir) 0 (-perp (angle dir)) !* v) ^* 4
@@ -68,4 +73,5 @@ initial = Position (V3 0 2 0)
   <% Velocity zero
   <% AngleP zero
   <% CurrentTarget TNone
+  <% AngleV zero
   <% Nil

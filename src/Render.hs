@@ -15,7 +15,32 @@ surfaceBitmap bmp uvs = \case
   SBottom -> mkStrip bmp uvs [V3 (-0.5) (-0.5) (-0.5), V3 0.5 (-0.5) (-0.5), V3 (-0.5) (-0.5) 0.5, V3 0.5 (-0.5) 0.5]
 {-# INLINE surfaceBitmap #-}
 
-mkStrip bmp uvs vs = vertices bmp TriangleStrip $ VS.fromList $ zipWith positionUV vs uvs
+withSurfaces :: ((Surface -> s) -> Rendering s) -> Rendering s
+withSurfaces f = withVertices sRear $ \sre ->
+                withVertices sLeft $ \sle ->
+                withVertices sRight $ \sri ->
+                withVertices sTop $ \sto ->
+                withVertices sFront $ \sfr ->
+                withVertices sBottom $ \sbo -> f $ \case
+                  SRear -> sre
+                  SLeft -> sle
+                  SRight -> sri
+                  STop -> sto
+                  SFront -> sfr
+                  SBottom -> sbo
+
+uvSquare :: [V2 Float]
+uvSquare = [V2 0 0, V2 1 0, V2 0 1, V2 1 1]
+
+sRear, sLeft, sRight, sTop, sFront, sBottom :: VS.Vector Vertex
+sRear = VS.fromList $! zipWith positionUV [V3 0.5 (-0.5) (-0.5), V3 (-0.5) (-0.5) (-0.5), V3 0.5 0.5 (-0.5), V3 (-0.5) 0.5 (-0.5)] uvSquare
+sLeft = VS.fromList $! zipWith positionUV [V3 (-0.5) (-0.5) (-0.5), V3 (-0.5) (-0.5) 0.5, V3 (-0.5) 0.5 (-0.5), V3 (-0.5) 0.5 0.5] uvSquare
+sRight = VS.fromList $! zipWith positionUV [V3 0.5 (-0.5) 0.5, V3 0.5 (-0.5) (-0.5), V3 0.5 0.5 0.5, V3 0.5 0.5 (-0.5)] uvSquare
+sTop = VS.fromList $! zipWith positionUV [V3 0.5 0.5 (-0.5), V3 (-0.5) 0.5 (-0.5), V3 0.5 0.5 0.5, V3 (-0.5) 0.5 0.5] uvSquare
+sFront = VS.fromList $! zipWith positionUV [V3 (-0.5) (-0.5) 0.5, V3 0.5 (-0.5) 0.5, V3 (-0.5) 0.5 0.5, V3 0.5 0.5 0.5] uvSquare
+sBottom = VS.fromList $! zipWith positionUV [V3 (-0.5) (-0.5) (-0.5), V3 0.5 (-0.5) (-0.5), V3 (-0.5) (-0.5) 0.5, V3 0.5 (-0.5) 0.5] uvSquare
+
+mkStrip bmp uvs vs = Scene $ vertices bmp TriangleStrip $ VS.fromList $ zipWith positionUV vs uvs
 {-# INLINE mkStrip #-}
 
 skybox :: Scene

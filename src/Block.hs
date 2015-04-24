@@ -8,18 +8,17 @@ import BurningPrelude
 type Block = Mortal Action IO ()
 
 data Action x where
-  Render :: Time -> Action (Surface -> Scene)
+  Render :: Time -> Action (Surface -> Bitmap)
   Damage :: Float -> Action ()
 
-dirt = solid _dirt_png 2 2
-stoneBrick = solid _stonebrick_png 5 5
+dirt :: Block
+dirt = mortal $ \case
+  Render dt -> return (\case
+    STop -> _grass_png
+    _ -> _dirt_png, dirt)
+  Damage d -> left ()
 
-solid :: Bitmap -> Float -> Float -> Block
-solid bmp !mf !f = mortal $ \case
-  Render dt -> if f < 0
-    then left ()
-    else return (color (V4 c c c 1)
-      . surfaceBitmap bmp [V2 0 0, V2 1 0, V2 0 1, V2 1 1], solid bmp mf (min mf (f + dt / 60)))
-  Damage d -> return ((), solid bmp mf (f - d))
-  where
-    c = f / mf
+stoneBrick :: Block
+stoneBrick = mortal $ \case
+  Render dt -> return (const _stonebrick_png, stoneBrick)
+  Damage d -> left ()

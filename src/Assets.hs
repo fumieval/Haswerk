@@ -21,7 +21,7 @@ _crosshair_png = unsafePerformIO $ readBitmap "assets/crosshair.png"
 _stonebrick_png = unsafePerformIO $ readBitmap "assets/stonebrick.png"
 _dirt_png = unsafePerformIO $ readBitmap "assets/dirt.png"
 
-
+_grass_png = unsafePerformIO $ readBitmap "assets/grass.png"
 
 -- Textures: http://forum.minecraftuser.jp/viewtopic.php?t=14102
 -- loadBitmapsWith [|return|] "../assets"

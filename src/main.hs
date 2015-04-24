@@ -11,7 +11,7 @@ import Control.Lens
 import Control.Elevator
 import qualified Block
 import qualified Data.Heap as Heap
-import qualified Data.Map.Strict as Map
+import qualified Data.HashMap.Strict as Map
 import qualified Data.Set as Set
 import Debug.Trace
 import Entity
@@ -21,12 +21,13 @@ import Control.Concurrent
 import Data.Witherable
 import Data.BoundingBox (Box(..))
 
-main = runCall FullScreen (Box (V2 0 0) (V2 640 480)) $ do
+main = runCall Windowed (Box (V2 0 0) (V2 1024 768)) $ do
   setFPS 30
 
   disableCursor
   -- clearColor (V4 0 0 0 0)
-  world <- new $ variable newWorld
+  w <- newWorld
+  world <- new $ variable w
   pl <- new $ Player.object @>>^ (world.-)
   prevCursor <- new $ variable zero
 
@@ -60,8 +61,8 @@ main = runCall FullScreen (Box (V2 0 0) (V2 640 480)) $ do
 
     whenM (keyPress KeyA) $ dir .- id -= V2 1 0
     whenM (keyPress KeyD) $ dir .- id += V2 1 0
-    whenM (keyPress KeySpace) $ pl .& Player.position' += V3 0 0.1 0
-    whenM (keyPress KeyLeftShift) $ pl .& Player.position' -= V3 0 0.1 0
+    whenM (keyPress KeySpace) $ pl .& Player.position' += V3 0 1 0
+    whenM (keyPress KeyLeftShift) $ pl .& Player.position' -= V3 0 1 0
 
 
     v <- dir .- get
@@ -86,7 +87,11 @@ main = runCall FullScreen (Box (V2 0 0) (V2 640 480)) $ do
       Just (Heap.Entry _ (i, s)) -> pl .& Player.currentTarget .= TBlock i s
       Nothing -> pl .& Player.currentTarget .= TNone
 
-    s <- rendered .- use folded
+    s <- rendered .- do
+      gets $ \sm -> Scene $ withSurfaces
+        $ \f -> ifoldMap (\v (bmp, ss) -> translate (fmap fromIntegral v)
+          $! foldMap (\s -> drawPrimitive (bmp s) TriangleStrip (f s)) ss) sm
+
     psp <- pl .^ Player.GetPerspective
     return $ psp (translate pos skybox <> s <> line [V3 0 0 0, V3 0 0 1])
 
@@ -103,6 +108,6 @@ main = runCall FullScreen (Box (V2 0 0) (V2 640 480)) $ do
           Dead -> do
             rendered .- at v .= Nothing
             world .- forM_ neumann (causeBlockUpdate . (+v))
-          Alive f -> do
-            !s <- world .- uses (blocks . to (surfaces v)) (foldMap f)
-            rendered .- at v ?= translate (fmap fromIntegral v) s
+          Alive bmp -> do
+            !ss <- world .- use (blocks . to (surfaces v))
+            rendered .- at v ?= (bmp, ss)
