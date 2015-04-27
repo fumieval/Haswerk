@@ -15,19 +15,13 @@ surfaceBitmap bmp uvs = \case
   SBottom -> mkStrip bmp uvs [V3 (-0.5) (-0.5) (-0.5), V3 0.5 (-0.5) (-0.5), V3 (-0.5) (-0.5) 0.5, V3 0.5 (-0.5) 0.5]
 {-# INLINE surfaceBitmap #-}
 
-withSurfaces :: ((Surface -> s) -> Rendering s) -> Rendering s
-withSurfaces f = withVertices sRear $ \sre ->
-                withVertices sLeft $ \sle ->
-                withVertices sRight $ \sri ->
-                withVertices sTop $ \sto ->
-                withVertices sFront $ \sfr ->
-                withVertices sBottom $ \sbo -> f $ \case
-                  SRear -> sre
-                  SLeft -> sle
-                  SRight -> sri
-                  STop -> sto
-                  SFront -> sfr
-                  SBottom -> sbo
+withSurfaces :: (Cube s -> Rendering s) -> Rendering s
+withSurfaces f = withVertices TriangleStrip sRear $ \sre ->
+                withVertices TriangleStrip sLeft $ \sle ->
+                withVertices TriangleStrip sRight $ \sri ->
+                withVertices TriangleStrip sTop $ \sto ->
+                withVertices TriangleStrip sFront $ \sfr ->
+                withVertices TriangleStrip sBottom $ \sbo -> f $ Cube sto sbo sle sri sfr sre
 
 uvSquare :: [V2 Float]
 uvSquare = [V2 0 0, V2 1 0, V2 0 1, V2 1 1]

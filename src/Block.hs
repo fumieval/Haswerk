@@ -1,3 +1,4 @@
+{-# LANGUAGE DeriveFunctor #-}
 module Block where
 import Call
 import Render
@@ -8,17 +9,15 @@ import BurningPrelude
 type Block = Mortal Action IO ()
 
 data Action x where
-  Render :: Time -> Action (Surface -> Bitmap)
+  Render :: Time -> Action (Cube Bitmap)
   Damage :: Float -> Action ()
 
 dirt :: Block
 dirt = mortal $ \case
-  Render dt -> return (\case
-    STop -> _grass_png
-    _ -> _dirt_png, dirt)
+  Render dt -> return (Cube _grass_png _dirt_png _dirt_png _dirt_png _dirt_png _dirt_png, dirt)
   Damage d -> left ()
 
 stoneBrick :: Block
 stoneBrick = mortal $ \case
-  Render dt -> return (const _stonebrick_png, stoneBrick)
+  Render dt -> return (Cube _stonebrick_png _stonebrick_png _stonebrick_png _stonebrick_png _stonebrick_png _stonebrick_png, stoneBrick)
   Damage d -> left ()

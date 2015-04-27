@@ -81,7 +81,7 @@ main = runCall Windowed (Box (V2 0 0) (V2 1024 768)) $ do
 
     w <- world .- use blocks
 
-    case getMin $ foldMap (\i -> foldMap (mk i) (surfaces i w))
+    case getMin $ foldMap (\i -> foldMap (mk i) (unfoldSurfaces $ surfaces i w))
           $ Set.fromList [fmap floor (pos + ray ^* k) + V3 x y z
             | k <- [0, sqrt 3..8], x <- [-1..1], y <- [-1..1], z <- [-1..1]] of
       Just (Heap.Entry _ (i, s)) -> pl .& Player.currentTarget .= TBlock i s
@@ -89,8 +89,8 @@ main = runCall Windowed (Box (V2 0 0) (V2 1024 768)) $ do
 
     s <- rendered .- do
       gets $ \sm -> Scene $ withSurfaces
-        $ \f -> ifoldMap (\v (bmp, ss) -> translate (fmap fromIntegral v)
-          $! foldMap (\s -> drawPrimitive (bmp s) TriangleStrip (f s)) ss) sm
+        $ \cube -> ifoldMap (\v (bmp, ss) -> translate (fmap fromIntegral v)
+          $ foldSurfaces (liftA2 drawPrimitive bmp cube) ss) sm
 
     psp <- pl .^ Player.GetPerspective
     return $ psp (translate pos skybox <> s <> line [V3 0 0 0, V3 0 0 1])
