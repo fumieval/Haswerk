@@ -63,10 +63,10 @@ object = initial &@~ \case
   GetPerspective -> do
     pos <- use position
     V2 dir elev <- use angleP
-    return $ viewScene (pi / 4) 1 200
-      . rotateOn (V3 elev 0 0)
-      . rotateOn (V3 0 dir 0)
-      . translate (-pos)
+    let rot = fromQuaternion $ axisAngle (V3 1 0 0) elev * axisAngle (V3 0 1 0) dir
+    let !m = m33_to_m44 rot !*! set translation (-pos) identity
+    return $ viewScene (pi / 4) 1 360
+      . \(Scene r) -> Scene $ applyMatrix m r
 
 initial = Position (V3 0 2 0)
   <% Position' (V3 0 2 0)

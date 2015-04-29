@@ -20,6 +20,7 @@ import Text.Printf
 import Control.Concurrent
 import Data.Witherable
 import Data.BoundingBox (Box(..))
+import Criterion.Measurement as Criterion
 
 main = runCall Windowed (Box (V2 0 0) (V2 1024 768)) $ do
   setFPS 30
@@ -51,7 +52,10 @@ main = runCall Windowed (Box (V2 0 0) (V2 1024 768)) $ do
 
   rendered <- new $ variable Map.empty
 
+  initializeTime
+
   linkGraphic $ \dt -> do
+
     pl .^ Player.Update dt
 
     dir <- new $ variable zero
@@ -93,7 +97,8 @@ main = runCall Windowed (Box (V2 0 0) (V2 1024 768)) $ do
           $ foldSurfaces (liftA2 drawPrimitive bmp cube) ss) sm
 
     psp <- pl .^ Player.GetPerspective
-    return $ psp (translate pos skybox <> s <> line [V3 0 0 0, V3 0 0 1])
+
+    return $ psp (translate pos skybox <> s)
 
   forkIO $ forever $ world .- uses blockUpdate Heap.uncons >>= \case
     Nothing -> wait 0.01

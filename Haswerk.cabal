@@ -24,7 +24,7 @@ executable Haswerk
   -- other-modules:
   -- other-extensions:
   default-extensions: ConstraintKinds, FlexibleContexts, LambdaCase, TypeFamilies, TemplateHaskell, GADTs, TypeOperators, DataKinds, Rank2Types, TemplateHaskell, MultiParamTypeClasses, FunctionalDependencies, FlexibleInstances, NoImplicitPrelude, BangPatterns, TupleSections
-  build-depends:       base, audiovisual, call >=0.2, bytestring, containers, lens, linear, mtl, objective, distributive, vector, filepath, elevator, extensible, transformers, array, either, witherable, heaps, deepseq, exceptions, boundingboxes, unordered-containers, random, profunctors
+  build-depends:       base, audiovisual, call >=0.2, bytestring, containers, lens, linear, mtl, objective, distributive, vector, filepath, elevator, extensible, transformers, array, either, witherable, heaps, deepseq, exceptions, boundingboxes, unordered-containers, random, profunctors, criterion
   hs-source-dirs:      src
-  ghc-options: -O2 -threaded -fexcess-precision -funbox-strict-fields
+  ghc-options: -O2 -threaded -fexcess-precision -optc-O3
   default-language:    Haskell2010

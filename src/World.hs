@@ -32,7 +32,7 @@ newWorld = do
       Nothing -> return ()
   s <- getAssocs ar
   -}
-  let s = [((i, j), 0) | i <- [-32..32], j <- [-32..32]]
+  let s = [((i, j), 0) | i <- [0..128], j <- [0..128]]
   return $ flip execState (World emptyWorld Heap.empty)
     $ for_ [(V3 i y j, dirt) | ((i, j), l) <- s, y <- [0..l]]
     $ \(i, b) -> placeBlock i b
