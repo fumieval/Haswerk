@@ -1,7 +1,5 @@
 module Player where
 import BurningPrelude
-import Call
-import Control.Elevator
 import Control.Object
 import Data.Distributive (distribute)
 import Data.Extensible
@@ -31,12 +29,12 @@ data Actions a where
   Attack :: Actions ()
   Act :: Actions ()
   Update :: Float -> Actions ()
-  GetPerspective :: Actions (Scene -> Sight)
+  GetPerspective :: Actions (M44 Float)
 
 onState :: forall s t m. Monad m => s -> (forall x. t x -> StateT s m x) -> Object t m
 onState s h = stateful h s
 
-object :: Object (Public PlayerState Actions) (StateT World IO)
+object :: Object (Public PlayerState Actions) IO
 object = initial &@~ \case
   Jump -> velocity += V3 0 0.5 0
   Turn d -> do
@@ -49,12 +47,10 @@ object = initial &@~ \case
     position' += (V3 (angle dir) 0 (-perp (angle dir)) !* v) ^* 4
   Attack -> use currentTarget >>= \case
     TNone -> return ()
-    TBlock p _ -> lift $ do
-      () <- apprisesOf (blocks . at p . wither) (Block.Damage 1) mempty mempty
-      causeBlockUpdate p
+    TBlock p _ -> return ()
   Act -> use currentTarget >>= \case
     TNone -> return ()
-    TBlock p s -> lift $ placeBlock (p + fromSurface s) Block.stoneBrick
+    TBlock p s -> return ()
   Update dt -> do
     pos <- use position
     vel <- use velocity
@@ -65,8 +61,7 @@ object = initial &@~ \case
     V2 dir elev <- use angleP
     let rot = fromQuaternion $ axisAngle (V3 1 0 0) elev * axisAngle (V3 0 1 0) dir
     let !m = m33_to_m44 rot !*! set translation (-pos) identity
-    return $ viewScene (pi / 4) 1 360
-      . \(Scene r) -> Scene $ applyMatrix m r
+    return $ perspective (pi / 4) (1024/768) 1 360 !*! m
 
 initial = Position (V3 0 2 0)
   <% Position' (V3 0 2 0)

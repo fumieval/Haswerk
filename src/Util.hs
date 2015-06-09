@@ -1,13 +1,13 @@
 module Util where
 import BurningPrelude
 import Control.Object
-import Control.Elevator
 import Control.Monad.Catch
 import qualified Data.Map as Map
 import qualified Data.Heap as Heap
+import Control.Concurrent.MVar
 
 (*-&) :: MVar s -> StateT s IO a -> IO a
-v *-& m = modifyMVar v (runStateT m)
+v *-& m = modifyMVar v (fmap swap . runStateT m)
 infix 3 *-&
 
 -- | Maybe-like monoid to fold 0 or 1 elements
@@ -49,10 +49,6 @@ i .& m = do
 infixr 3 .&
 
 data Public s t a = Operate (t a) | Stateful (State s a)
-
-instance Tower (Public s t) where
-  type Floors (Public s t) = '[State s, t]
-  stairs = Stateful `rung` Operate `rung` Nil
 
 (&@~) :: Monad m => s -> (forall x. t x -> StateT s m x) -> Object (Public s t) m
 s0 &@~ h = go s0 where

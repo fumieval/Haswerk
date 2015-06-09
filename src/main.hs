@@ -1,78 +1,77 @@
 import BurningPrelude
 import qualified Player
 import World
-import Render
 import Geometry
 import Util
 import Assets
 import Voxel
-import Control.Lens
-import Control.Elevator
-import qualified Block
-import qualified Data.Heap as Heap
-import qualified Data.HashMap.Strict as HM
-import qualified Data.Set as Set
+import TPQueue
+import Control.Bool
+import Control.Concurrent
+import Control.Concurrent.STM
+import Control.Object
+import Data.BoundingBox (Box(..))
+import Data.Reflection
+import Data.Witherable
 import Debug.Trace
 import Entity
-import qualified Audiovisual.Text as Text
+import Graphics.Holz
+import qualified Block
+import qualified Data.HashMap.Strict as HM
+import qualified Data.Heap as Heap
+import qualified Data.Set as Set
+import qualified Data.Vector.Storable as V
 import Text.Printf
-import Control.Concurrent
-import Data.Witherable
-import Data.BoundingBox (Box(..))
-import Criterion.Measurement as Criterion
-import Holz
 
-main = runHolz Windowed (Box (V2 0 0) (V2 1024 768)) $ do
-  setFPS 30
+type Chunks = HM.HashMap (V3 Int) VertexBuffer
+
+emptyChunks :: HM.HashMap (V3 Int) VertexBuffer
+emptyChunks = HM.empty
+
+drawChunks :: Given System => M44 Float -> Texture -> Chunks -> IO ()
+drawChunks v tex = itraverse_ (\i buf -> drawVertex (tr i !*! v) tex buf) where
+  tr i = identity & translation .~ fmap fromIntegral (i ^* chunkSize)
+
+chunkSize :: Int
+chunkSize = 16
+
+main = withHolz Windowed (Box (V2 0 0) (V2 1024 768)) $ do
 
   disableCursor
   -- clearColor (V4 0 0 0 0)
 
-  pl <- new $ Player.object @>>^ (world.-)
+  pl <- new Player.object
   prevCursor <- new $ variable zero
 
-  linkMouse $ \case
-    Button (Down 0) -> pl .^ Player.Attack
-    Button (Down 1) -> pl .^ Player.Act
-    Cursor pos -> do
-      pos' <- prevCursor .- get
-      pl .^ Player.Turn ((pos - pos') / 300)
-      prevCursor .- put pos
+  linkMouseButton $ \case
+    Down 0 -> pl .^ Player.Attack
+    Down 1 -> pl .^ Player.Act
     _ -> return ()
+  linkMouseCursor $ \pos -> do
+    pos' <- prevCursor .- get
+    pl .^ Player.Turn ((pos - pos') / 300)
+    prevCursor .- put pos
 
-  text <- Text.simple defaultFont 24
-
+  world <- newMVar HM.empty
+  cache <- newMVar HM.empty
   rendered <- newMVar emptyChunks
 
-  blockUpdate <- newTPQueue
+  texBlocks <- registerTexture _terrain_png
 
-  -- Maintains vertex buffers
-  forkIO $ forever $ do
-    v <- readTPQueue blockUpdate
-    world *-& apprisesOf (blocks . at v . wither)
-      (Block.Render (1/60))
-      Alive
-      (const Dead)
-      >>= \case
-        Impossible -> return ()
-        Dead -> do
-          cache *-& at v .= Nothing
-          for (map (v +) neumann) (writeChan blockUpdate)
-        Alive a -> do
-          cache *-& at v ?= a
+  chunkUpdate <- atomically newTPQueue :: IO (TPQueue Float (V3 Int))
 
   forkOS $ forever $ do
-    ch <- readTPQueue chunkUpdate
+    (_, ch) <- atomically $ readTPQueue chunkUpdate
     ca <- readMVar cache
     buf <- registerVertex Triangles
       $ V.fromList
       $ flip appEndo []
-      $ foldVoxel (\i cube (ty, f) -> Endo $ (++) $ f $ fmap (maybe Transparent id . fst) cube)
+      $ foldVoxel (\i cube (ty, f) -> Endo $ (++) $ f $ fmap (maybe Block.Transparent fst) cube)
       $ do
         k <- sequence (pure [0..chunkSize-1])
         let i = ch ^* chunkSize + k
         a <- ca ^.. ix i
-        return (i, a)
+        return a
     rm <- takeMVar rendered
     case rm ^? ix ch of
       Nothing -> return ()
@@ -102,26 +101,24 @@ main = runHolz Windowed (Box (V2 0 0) (V2 1024 768)) $ do
     -- |ray| == 1
     ray <- pl .& uses Player.angleP spherical'
 
-    w <- world .- use blocks
+    w <- readMVar world
 
-    case getMin $ foldMap (penCandidate pos ray) candidates
+    case getMin $ foldMap (penetrationEntry pos ray)
       $ Set.fromList [t
           | k <- [0, sqrt 3..8]
           , x <- [-1..1]
           , y <- [-1..1]
           , z <- [-1..1]
           , let t = fmap floor (pos + ray ^* k) + V3 x y z
-          , w `has` ix t] of
+          , has (ix t) w] of
         Just (Heap.Entry _ (i, s)) -> pl .& Player.currentTarget .= TBlock i s
         Nothing -> pl .& Player.currentTarget .= TNone
 
     psp <- pl .^ Player.GetPerspective
 
-    let texBlocks = _dirt_png
+    drawChunks psp texBlocks =<< readMVar rendered
 
-    rendered *-& (get >>= drawChunks psp texBlocks)
-
-penetrationEntry :: V3 Float -> V3 Float -> V3 Int -> Min (Heap.Entry Double (V3 Int, Surface))
+penetrationEntry :: V3 Float -> V3 Float -> V3 Int -> Min (Heap.Entry Float (V3 Int, Surface))
 penetrationEntry pos ray i = flip foldMap allSurfaces $ \s -> do
   let n = fromSurface s
   case penetration ray (fmap fromIntegral i + n ^* 0.5 - pos) n of

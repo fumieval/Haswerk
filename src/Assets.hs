@@ -1,10 +1,8 @@
 module Assets where
 import BurningPrelude
-import Call
 import Data.Monoid
 import qualified Data.Vector.Storable as VS
 import qualified Data.Vector as V
--- import qualified Data.PMD as PMD
 import qualified Data.ByteString.Lazy as BL
 import Control.Lens
 import Data.ByteString.Lens
@@ -13,54 +11,33 @@ import System.FilePath
 import System.FilePath.Lens
 import Paths_Haswerk
 import System.IO.Unsafe
+import Codec.Picture
 
-_skybox_png = unsafePerformIO $ readBitmap "assets/skybox.png"
+_skybox_png = unsafePerformIO $ readImageRGBA8 "assets/skybox.png"
 
-_crosshair_png = unsafePerformIO $ readBitmap "assets/crosshair.png"
+_terrain_png = unsafePerformIO $ readImageRGBA8 "assets/terrain.png"
 
-_stonebrick_png = unsafePerformIO $ readBitmap "assets/stonebrick.png"
-_dirt_png = unsafePerformIO $ readBitmap "assets/dirt.png"
+fromDynamicImage :: DynamicImage -> Image PixelRGBA8
+fromDynamicImage (ImageY8 img) = pixelMap toRGBA8 img
+fromDynamicImage (ImageYA8 img) = pixelMap toRGBA8 img
+fromDynamicImage (ImageRGB8 img) = pixelMap toRGBA8 img
+fromDynamicImage (ImageRGBA8 img) = img
+fromDynamicImage _ = error "Unsupported format"
 
-_grass_png = unsafePerformIO $ readBitmap "assets/grass.png"
+readImageRGBA8 :: FilePath -> IO (Image PixelRGBA8)
+readImageRGBA8 path = readImage path >>= either fail (return . fromDynamicImage)
 
--- Textures: http://forum.minecraftuser.jp/viewtopic.php?t=14102
--- loadBitmapsWith [|return|] "../assets"
-{-
-fromPMDVertex :: PMD.Vertex -> Vertex
-fromPMDVertex v
-  | PMD.ve v == 1 = Vertex (p + n) uv n
-  | otherwise = Vertex p uv n where
-    p = fmap realToFrac $ V3 (PMD.vpx v) (PMD.vpy v) (PMD.vpz v)
-    uv = fmap realToFrac $ V2 (PMD.vu v) (PMD.vv v)
-    n = fmap realToFrac $ V3 (PMD.vnx v) (PMD.vny v) (PMD.vnz v)
+class ToPixelRGBA8 a where
+    toRGBA8 :: a -> PixelRGBA8
 
-fromPMDMaterial :: PMD.Material -> Color
-fromPMDMaterial m = blend 0.5
-  (RGBA (realToFrac $ PMD.mdr m) (realToFrac $ PMD.mdg m) (realToFrac $ PMD.mdb m) (realToFrac $ PMD.mda m))
-  (RGBA (realToFrac $ PMD.mar m) (realToFrac $ PMD.mag m) (realToFrac $ PMD.mab m) 1)
+instance ToPixelRGBA8 Pixel8 where
+    toRGBA8 b = PixelRGBA8 b b b 255
 
-fromPMD :: FilePath -> IO Scene
-fromPMD path = do
-  Right (PMD.PMD _ _ (PMD.VertexVec vv) (PMD.IndexInfo vi) (PMD.Materials ms)) <- decodeLazy <$> BL.readFile path
-  let go pos (m:ms) = do
-        let n = fromIntegral (PMD.mvs m)
-        let path0 = PMD.mfilename m ^. unpackedChars
-        let (path',rest) = break (=='*') $ takeWhile (/=toEnum 0) path0
-        print $ fromIntegral (PMD.mn m)
-        bmp <- if path' == ""
-          then return Blank
-          else readBitmap $ takeDirectory path </> path'
-        f <- if rest == "" then return id
-          else do
-            b <- readBitmap $ takeDirectory path </> tail rest
-            return $ applyVFX . if last rest == 'h' then SphericalAdd b else SphericalMultiply b
-        s <- go (pos + n) ms
-        return $ mappend s
-          $ color (fromPMDMaterial m)
-          $ f
-          $ vertices bmp Triangles
-          $ VS.fromList [fromPMDVertex $ vv V.! fromIntegral (vi V.! i)
-          | i <- [pos..pos+n-1]]
-      go _ [] = return mempty
-  go 0 (V.toList ms)
--}
+instance ToPixelRGBA8 PixelYA8 where
+    toRGBA8 (PixelYA8 l a) = PixelRGBA8 l l l a
+
+instance ToPixelRGBA8 PixelRGB8 where
+    toRGBA8 (PixelRGB8 r g b) = PixelRGBA8 r g b 255
+
+instance ToPixelRGBA8 PixelRGBA8 where
+    toRGBA8 = id

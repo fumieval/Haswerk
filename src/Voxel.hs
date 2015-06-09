@@ -1,5 +1,8 @@
 {-# LANGUAGE DeriveFunctor, DeriveFoldable, DeriveTraversable #-}
 module Voxel where
+import BurningPrelude
+import Data.Distributive
+import qualified Data.HashMap.Strict as HM
 
 data Surface = STop | SBottom | SLeft | SRight | SFront | SRear
 
@@ -20,6 +23,9 @@ data Cube a = Cube !a !a !a !a !a !a deriving (Functor, Foldable, Traversable)
 instance Monoid a => Monoid (Cube a) where
   mempty = pure mempty
   mappend = liftA2 mappend
+
+instance Distributive Cube where
+  distribute = distributeRep
 
 instance Representable Cube where
   type Rep Cube = Surface

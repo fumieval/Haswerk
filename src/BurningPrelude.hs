@@ -14,6 +14,7 @@ module BurningPrelude (module Prelude,
   module Data.Functor.Identity,
   module Data.Function,
   module Linear,
+  module Data.Functor.Rep,
   swap
   ) where
 
@@ -28,9 +29,10 @@ import Control.Monad.IO.Class
 import Control.Monad.State.Class
 import Control.Monad.Trans.State.Strict hiding (liftCallCC, liftCatch, get, put, state, modify, modify', gets)
 import Control.Monad.Trans.Writer.Strict hiding (liftCallCC, liftCatch)
-import Control.Lens
+import Control.Lens hiding (index)
 import Data.Function (on)
 import Data.Functor.Identity
 import Data.Monoid
 import Linear
 import Data.Tuple
+import Data.Functor.Rep
