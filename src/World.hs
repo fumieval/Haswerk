@@ -10,7 +10,7 @@ import Data.Array.IO
 import System.Random
 
 data World = World
-  { _blocks :: !(VoxelWorld Block)
+  { _blocks :: !(HM.HashMap (V3 Int) Block)
   , _blockUpdate :: !(Heap.Heap (Heap.Entry Float (V3 Int)))
   }
 makeLenses ''World

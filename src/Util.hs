@@ -4,6 +4,11 @@ import Control.Object
 import Control.Elevator
 import Control.Monad.Catch
 import qualified Data.Map as Map
+import qualified Data.Heap as Heap
+
+(*-&) :: MVar s -> StateT s IO a -> IO a
+v *-& m = modifyMVar v (runStateT m)
+infix 3 *-&
 
 -- | Maybe-like monoid to fold 0 or 1 elements
 data ForOne a = Alive a | Dead | Impossible

@@ -1,17 +1,10 @@
 module Render where
 import BurningPrelude
 import Assets
-import Call
 import Voxel
 import qualified Data.Vector.Storable as VS
-
-withSurfaces :: (Cube s -> Rendering s) -> Rendering s
-withSurfaces f = withVertices Triangles sRear $ \sre ->
-                withVertices Triangles sLeft $ \sle ->
-                withVertices Triangles sRight $ \sri ->
-                withVertices Triangles sTop $ \sto ->
-                withVertices Triangles sFront $ \sfr ->
-                withVertices Triangles sBottom $ \sbo -> f $ Cube sto sbo sle sri sfr sre
+import qualified Data.HashMap.Strict as HM
+import Graphics.Holz
 
 uvSquare :: [V2 Float]
 uvSquare = [V2 0 0, V2 1 0, V2 0 1, V2 1 1]

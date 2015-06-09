@@ -1,5 +1,4 @@
 import BurningPrelude
-import Call
 import qualified Player
 import World
 import Render
@@ -11,7 +10,7 @@ import Control.Lens
 import Control.Elevator
 import qualified Block
 import qualified Data.Heap as Heap
-import qualified Data.HashMap.Strict as Map
+import qualified Data.HashMap.Strict as HM
 import qualified Data.Set as Set
 import Debug.Trace
 import Entity
@@ -21,14 +20,14 @@ import Control.Concurrent
 import Data.Witherable
 import Data.BoundingBox (Box(..))
 import Criterion.Measurement as Criterion
+import Holz
 
-main = runCall Windowed (Box (V2 0 0) (V2 1024 768)) $ do
+main = runHolz Windowed (Box (V2 0 0) (V2 1024 768)) $ do
   setFPS 30
 
   disableCursor
   -- clearColor (V4 0 0 0 0)
-  w <- newWorld
-  world <- new $ variable w
+
   pl <- new $ Player.object @>>^ (world.-)
   prevCursor <- new $ variable zero
 
@@ -43,31 +42,56 @@ main = runCall Windowed (Box (V2 0 0) (V2 1024 768)) $ do
 
   text <- Text.simple defaultFont 24
 
-  linkPicture $ \_ -> return $ translate (V2 320 240) $ bitmap _crosshair_png
+  rendered <- newMVar emptyChunks
 
-  linkPicture $ \_ -> do
-    t <- getFPS
+  blockUpdate <- newTPQueue
 
-    return $ mconcat [translate (V2 40 40) $ text $ printf "%.1f" t]
+  -- Maintains vertex buffers
+  forkIO $ forever $ do
+    v <- readTPQueue blockUpdate
+    world *-& apprisesOf (blocks . at v . wither)
+      (Block.Render (1/60))
+      Alive
+      (const Dead)
+      >>= \case
+        Impossible -> return ()
+        Dead -> do
+          cache *-& at v .= Nothing
+          for (map (v +) neumann) (writeChan blockUpdate)
+        Alive a -> do
+          cache *-& at v ?= a
 
-  rendered <- new $ variable Map.empty
+  forkOS $ forever $ do
+    ch <- readTPQueue chunkUpdate
+    ca <- readMVar cache
+    buf <- registerVertex Triangles
+      $ V.fromList
+      $ flip appEndo []
+      $ foldVoxel (\i cube (ty, f) -> Endo $ (++) $ f $ fmap (maybe Transparent id . fst) cube)
+      $ do
+        k <- sequence (pure [0..chunkSize-1])
+        let i = ch ^* chunkSize + k
+        a <- ca ^.. ix i
+        return (i, a)
+    rm <- takeMVar rendered
+    case rm ^? ix ch of
+      Nothing -> return ()
+      Just a -> releaseVertex a
+    putMVar rendered $ rm & at ch ?~ buf
 
-  initializeTime
-
-  linkGraphic $ \dt -> do
-
+  -- Handle the input and draws the world periodically.
+  forever $ do
+    let dt = 1/60
     pl .^ Player.Update dt
 
     dir <- new $ variable zero
 
     whenM (keyPress KeyW) $ dir .- id += V2 0 1
     whenM (keyPress KeyS) $ dir .- id -= V2 0 1
-
     whenM (keyPress KeyA) $ dir .- id -= V2 1 0
     whenM (keyPress KeyD) $ dir .- id += V2 1 0
     whenM (keyPress KeySpace) $ pl .& Player.position' += V3 0 1 0
     whenM (keyPress KeyLeftShift) $ pl .& Player.position' -= V3 0 1 0
-
 
     v <- dir .- get
 
@@ -78,41 +102,28 @@ main = runCall Windowed (Box (V2 0 0) (V2 1024 768)) $ do
     -- |ray| == 1
     ray <- pl .& uses Player.angleP spherical'
 
-    let mk i s = let n = fromSurface s in
-          case penetration ray (fmap fromIntegral i + n ^* 0.5 - pos) n of
-            Just k -> Min $ Just $ Heap.Entry k (i, s)
-            Nothing -> mempty
-
     w <- world .- use blocks
 
-    case getMin $ foldMap (\i -> foldMap (mk i) (unfoldSurfaces $ surfaces i w))
-          $ Set.fromList [fmap floor (pos + ray ^* k) + V3 x y z
-            | k <- [0, sqrt 3..8], x <- [-1..1], y <- [-1..1], z <- [-1..1]] of
-      Just (Heap.Entry _ (i, s)) -> pl .& Player.currentTarget .= TBlock i s
-      Nothing -> pl .& Player.currentTarget .= TNone
-
-    s <- rendered .- do
-      gets $ \sm -> Scene $ withSurfaces
-        $ \cube -> ifoldMap (\v (bmp, ss) -> translate (fmap fromIntegral v)
-          $ foldSurfaces (liftA2 drawPrimitive bmp cube) ss) sm
+    case getMin $ foldMap (penCandidate pos ray) candidates
+      $ Set.fromList [t
+          | k <- [0, sqrt 3..8]
+          , x <- [-1..1]
+          , y <- [-1..1]
+          , z <- [-1..1]
+          , let t = fmap floor (pos + ray ^* k) + V3 x y z
+          , w `has` ix t] of
+        Just (Heap.Entry _ (i, s)) -> pl .& Player.currentTarget .= TBlock i s
+        Nothing -> pl .& Player.currentTarget .= TNone
 
     psp <- pl .^ Player.GetPerspective
 
-    return $ psp (translate pos skybox <> s)
+    let texBlocks = _dirt_png
 
-  forkIO $ forever $ world .- uses blockUpdate Heap.uncons >>= \case
-    Nothing -> wait 0.01
-    Just (Heap.Entry _ v, bu) -> do
-      world .- blockUpdate .= bu
-      world .- apprisesOf (blocks . at v . wither)
-        (Block.Render (1/60))
-        Alive
-        (const Dead)
-        >>= \case
-          Impossible -> rendered .- at v .= Nothing
-          Dead -> do
-            rendered .- at v .= Nothing
-            world .- forM_ neumann (causeBlockUpdate . (+v))
-          Alive bmp -> do
-            !ss <- world .- use (blocks . to (surfaces v))
-            rendered .- at v ?= (bmp, ss)
+    rendered *-& (get >>= drawChunks psp texBlocks)
+
+penetrationEntry :: V3 Float -> V3 Float -> V3 Int -> Min (Heap.Entry Double (V3 Int, Surface))
+penetrationEntry pos ray i = flip foldMap allSurfaces $ \s -> do
+  let n = fromSurface s
+  case penetration ray (fmap fromIntegral i + n ^* 0.5 - pos) n of
+    Just k -> Min $ Just $ Heap.Entry k (i, s)
+    Nothing -> mempty

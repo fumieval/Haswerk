@@ -1,0 +1,21 @@
+module TPQueue where
+
+import Control.Concurrent.STM
+import qualified Data.Heap as Heap
+
+newtype TPQueue p a = TPQueue (TVar (Heap.Heap (Heap.Entry p a)))
+
+newTPQueue :: STM (TPQueue p a)
+newTPQueue = TPQueue <$> newTVar Heap.empty
+
+readTPQueue :: Ord p => TPQueue p a -> STM (p, a)
+readTPQueue (TPQueue th) = do
+  h <- readTVar th
+  case Heap.uncons h of
+    Nothing -> retry
+    Just (Heap.Entry p a, h') -> do
+      writeTVar th h'
+      return (p, a)
+
+writeTPQueue :: Ord p => TPQueue p a -> p -> a -> STM ()
+writeTPQueue (TPQueue th) p a = modifyTVar' th $ Heap.insert (Heap.Entry p a)

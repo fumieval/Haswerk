@@ -1,15 +1,16 @@
 {-# LANGUAGE DeriveFunctor #-}
 module Block where
 import Call
-import Render
 import Voxel
 import Assets
 import BurningPrelude
 
 type Block = Mortal Action IO ()
 
+data BlockKind = Transparent | Opaque
+
 data Action x where
-  Render :: Time -> Action (Cube Bitmap)
+  Render :: Time -> Action (BlockKind, Cube BlockKind -> [Vertex])
   Damage :: Float -> Action ()
 
 dirt :: Block
