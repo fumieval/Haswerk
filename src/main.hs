@@ -53,7 +53,7 @@ main = withHolz Windowed (Box (V2 0 0) (V2 1024 768)) $ do
     prevCursor .- put pos
 
   world <- newMVar HM.empty
-  cache <- newMVar HM.empty
+  cache <- newMVar (HM.empty :: HM.HashMap (V3 Int) (Block.Prop, Cube Block.Prop -> [Vertex]))
   rendered <- newMVar emptyChunks
 
   texBlocks <- registerTexture _terrain_png
@@ -63,15 +63,13 @@ main = withHolz Windowed (Box (V2 0 0) (V2 1024 768)) $ do
   forkOS $ forever $ do
     (_, ch) <- atomically $ readTPQueue chunkUpdate
     ca <- readMVar cache
-    buf <- registerVertex Triangles
+    buf <- registerVertex TriangleStrip
       $ V.fromList
-      $ flip appEndo []
-      $ foldVoxel (\i cube (ty, f) -> Endo $ (++) $ f $ fmap (maybe Block.Transparent fst) cube)
       $ do
         k <- sequence (pure [0..chunkSize-1])
         let i = ch ^* chunkSize + k
-        a <- ca ^.. ix i
-        return a
+        (_, f) <- ca ^.. ix i
+        f $ tabulate $ \s -> maybe Block.Transparent fst $ ca ^? ix (i + fromSurface s)
     rm <- takeMVar rendered
     case rm ^? ix ch of
       Nothing -> return ()

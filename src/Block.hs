@@ -8,10 +8,10 @@ import Control.Object
 
 type Block = Mortal Action IO ()
 
-data BlockKind = Transparent | Opaque
+data Prop = Transparent | Opaque
 
 data Action x where
-  Render :: Float -> Action (BlockKind, Cube BlockKind -> [Vertex])
+  Render :: Float -> Action (Prop, Cube Prop -> [Vertex])
   Damage :: Float -> Action ()
 
 genStrip :: [a] -> [a]
@@ -23,7 +23,7 @@ cubeMesh :: Cube [V2 Float] -> Cube [Vertex]
 cubeMesh uv = tabulate $ \s -> zipWith (\t v -> Vertex v t (fromSurface s)) (index uv s) (vs s) where
   vs s = map (cross (fromSurface s ^/ 2)) [V3 (-1) (-1) 1, V3 (-1) 1 1, V3 1 (-1) 1, V3 1 1 1]
 
-hidden :: Monoid a => BlockKind -> a -> a
+hidden :: Monoid a => Prop -> a -> a
 hidden Transparent a = a
 hidden Opaque _ = mempty
 
@@ -34,7 +34,7 @@ texUV m n = [V2 u v, V2 u' v, V2 u v', V2 u' v'] where
   u' = u + 1/16
   v' = v + 1/16
 
-cubeMeshOn :: Cube [V2 Float] -> Cube BlockKind -> [Vertex]
+cubeMeshOn :: Cube [V2 Float] -> Cube Prop -> [Vertex]
 cubeMeshOn uv c = fold $ hidden <$> c <*> cubeMesh uv
 
 dirt :: Block

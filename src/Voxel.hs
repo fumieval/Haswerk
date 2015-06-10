@@ -2,7 +2,6 @@
 module Voxel where
 import BurningPrelude
 import Data.Distributive
-import qualified Data.HashMap.Strict as HM
 
 data Surface = STop | SBottom | SLeft | SRight | SFront | SRear
 
@@ -43,7 +42,3 @@ instance Applicative Cube where
   {-# INLINE pure #-}
   Cube f0 f1 f2 f3 f4 f5 <*> Cube x0 x1 x2 x3 x4 x5 = Cube (f0 x0) (f1 x1) (f2 x2) (f3 x3) (f4 x4) (f5 x5)
   {-# INLINE (<*>) #-}
-
-foldVoxel :: Monoid r => (V3 Int -> Cube (Maybe a) -> a -> r) -> [(V3 Int, a)] -> r
-foldVoxel f xs = foldMap (\(v, a) -> f v (neighbors v) a) xs where
-  neighbors v = tabulate $ \s -> HM.fromList xs ^? ix (v + fromSurface s)
