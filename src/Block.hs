@@ -6,12 +6,14 @@ import BurningPrelude
 import Graphics.Holz
 import Control.Object
 
+type Appearance = (Prop, Cube Prop -> [Vertex])
+
 type Block = Mortal Action IO ()
 
 data Prop = Transparent | Opaque
 
 data Action x where
-  Render :: Float -> Action (Prop, Cube Prop -> [Vertex])
+  Render :: Float -> Action Appearance
   Damage :: Float -> Action ()
 
 genStrip :: [a] -> [a]
@@ -37,19 +39,12 @@ texUV m n = [V2 u v, V2 u' v, V2 u v', V2 u' v'] where
 cubeMeshOn :: Cube [V2 Float] -> Cube Prop -> [Vertex]
 cubeMeshOn uv c = fold $ hidden <$> c <*> cubeMesh uv
 
-dirt :: Block
-dirt = mortal $ \case
-  Render dt -> return ((Opaque, cubeMeshOn $ pure (texUV 2 0)), dirt)
-  Damage d -> left ()
+dirt :: Appearance
+dirt = (Opaque, cubeMeshOn $ pure (texUV 2 0))
 
-gdirt :: Block
-gdirt = mortal $ \case
-  Render dt -> return ((Opaque, cubeMeshOn c), gdirt)
-  Damage d -> left ()
-  where
-    c = Cube (texUV 0 0) (texUV 2 0) (texUV 3 0) (texUV 3 0) (texUV 3 0) (texUV 3 0)
+gdirt :: Appearance
+gdirt = (Opaque, cubeMeshOn c) where
+  c = Cube (texUV 0 0) (texUV 2 0) (texUV 3 0) (texUV 3 0) (texUV 3 0) (texUV 3 0)
 
-stoneBrick :: Block
-stoneBrick = mortal $ \case
-  Render dt -> return ((Opaque, cubeMeshOn $ pure (texUV 6 3)), stoneBrick)
-  Damage d -> left ()
+stoneBrick :: Appearance
+stoneBrick = (Opaque, cubeMeshOn $ pure (texUV 6 3))

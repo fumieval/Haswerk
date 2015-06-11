@@ -1,6 +1,5 @@
 import BurningPrelude
 import qualified Player
-import World
 import Geometry
 import Util
 import Assets
@@ -22,23 +21,41 @@ import qualified Data.Heap as Heap
 import qualified Data.Set as Set
 import qualified Data.Vector.Storable as V
 import Text.Printf
+import Control.Concurrent
+import qualified Data.Ix as Ix
 
-type Chunks = HM.HashMap (V3 Int) VertexBuffer
+type Chunks a = HM.HashMap (V3 Int) a
 
-emptyChunks :: HM.HashMap (V3 Int) VertexBuffer
+emptyChunks :: Chunks a
 emptyChunks = HM.empty
 
-drawChunks :: Given System => M44 Float -> Texture -> Chunks -> IO ()
+drawChunks :: Given System => M44 Float -> Texture -> Chunks VertexBuffer -> IO ()
 drawChunks v tex = itraverse_ (\i buf -> drawVertex (tr i !*! v) tex buf) where
   tr i = identity & translation .~ fmap fromIntegral (i ^* chunkSize)
 
 chunkSize :: Int
 chunkSize = 16
 
+worldSeed :: Int
+worldSeed = 0
+
+readChunk :: V3 Int -> IO (HM.HashMap (V3 Int) Block.Appearance)
+readChunk ch = do
+  let origin@(V3 x0 y0 z0) = ch ^* chunkSize
+  let hm = HM.fromList $ do
+        p <- sequence $ liftA2 enumFromTo zero (pure (chunkSize-1))
+        return (p, floor $ 40 * perlin worldSeed (fmap fromIntegral (V2 x0 y0 + p) :: V2 Float))
+  return $ HM.fromList $ do
+    p@(V3 x y z) <- sequence $ liftA2 enumFromTo zero (pure (chunkSize-1))
+    let h = hm ^?! ix (V2 x y)
+    if
+      | z < h -> return (origin + p, Block.dirt)
+      | z == h -> return (origin + p, Block.gdirt)
+      | otherwise -> []
+
 main = withHolz Windowed (Box (V2 0 0) (V2 1024 768)) $ do
 
   disableCursor
-  -- clearColor (V4 0 0 0 0)
 
   pl <- new Player.object
   prevCursor <- new $ variable zero
@@ -52,29 +69,29 @@ main = withHolz Windowed (Box (V2 0 0) (V2 1024 768)) $ do
     pl .^ Player.Turn ((pos - pos') / 300)
     prevCursor .- put pos
 
-  world <- newMVar HM.empty
-  cache <- newMVar (HM.empty :: HM.HashMap (V3 Int) (Block.Prop, Cube Block.Prop -> [Vertex]))
-  rendered <- newMVar emptyChunks
+  buffers <- newMVar emptyChunks
 
   texBlocks <- registerTexture _terrain_png
 
   chunkUpdate <- atomically newTPQueue :: IO (TPQueue Float (V3 Int))
 
-  forkOS $ forever $ do
+  for (Ix.range (-8, 8)) $ \p -> atomically $ writeTPQueue chunkUpdate 0 p
+
+  forkIO $ forever $ do
     (_, ch) <- atomically $ readTPQueue chunkUpdate
-    ca <- readMVar cache
+    m <- readChunk ch
     buf <- registerVertex TriangleStrip
       $ V.fromList
       $ do
         k <- sequence (pure [0..chunkSize-1])
         let i = ch ^* chunkSize + k
-        (_, f) <- ca ^.. ix i
-        f $ tabulate $ \s -> maybe Block.Transparent fst $ ca ^? ix (i + fromSurface s)
-    rm <- takeMVar rendered
+        (_, f) <- m ^.. ix i
+        f $ tabulate $ \s -> maybe Block.Transparent fst $ m ^? ix (i + fromSurface s)
+    rm <- takeMVar buffers
     case rm ^? ix ch of
       Nothing -> return ()
       Just a -> releaseVertex a
-    putMVar rendered $ rm & at ch ?~ buf
+    putMVar buffers $ rm & at ch ?~ buf
 
   -- Handle the input and draws the world periodically.
   forever $ do
@@ -94,27 +111,10 @@ main = withHolz Windowed (Box (V2 0 0) (V2 1024 768)) $ do
 
     pl .^ Player.Move (v ^* dt)
 
-    pos <- pl .& use Player.position
-
-    -- |ray| == 1
-    ray <- pl .& uses Player.angleP spherical'
-
-    w <- readMVar world
-
-    case getMin $ foldMap (penetrationEntry pos ray)
-      $ Set.fromList [t
-          | k <- [0, sqrt 3..8]
-          , x <- [-1..1]
-          , y <- [-1..1]
-          , z <- [-1..1]
-          , let t = fmap floor (pos + ray ^* k) + V3 x y z
-          , has (ix t) w] of
-        Just (Heap.Entry _ (i, s)) -> pl .& Player.currentTarget .= TBlock i s
-        Nothing -> pl .& Player.currentTarget .= TNone
-
     psp <- pl .^ Player.GetPerspective
 
-    drawChunks psp texBlocks =<< readMVar rendered
+    drawChunks psp texBlocks =<< readMVar buffers
+    threadDelay $ floor $ dt * 1000 * 1000
 
 penetrationEntry :: V3 Float -> V3 Float -> V3 Int -> Min (Heap.Entry Float (V3 Int, Surface))
 penetrationEntry pos ray i = flip foldMap allSurfaces $ \s -> do

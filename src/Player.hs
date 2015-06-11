@@ -7,7 +7,6 @@ import qualified Block
 import qualified Data.Map as Map
 import Util
 import Voxel
-import World
 import Entity
 import Data.Witherable
 

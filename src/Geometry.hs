@@ -1,5 +1,6 @@
 module Geometry where
 import BurningPrelude
+import Data.Hashable
 
 spherical :: RealFloat a => a -> a -> V3 a
 spherical dir elev = V3 (sin dir * cos elev) (-sin elev) (-cos dir * cos elev)
@@ -18,3 +19,11 @@ penetration v p n
     c = dot v n
     ob = dot p n
     k = ob / c
+
+perlin :: (Floating a, Hashable a) => Int -> V2 a -> a
+perlin n pos = lp sy (lp sx (grad 0) (grad 1)) (lp sx (grad 2) (grad 3)) where
+  spline x = x ^ 2 * (3 - 2 * x)
+  V2 sx sy = fmap spline v
+  grad i = dot v $ angle (fromIntegral (hashWithSalt (n + i) v))
+  lp t a b = t * a + (1 - t) * b
+  v = fmap (\x -> 1 / (1 + exp x)) pos
