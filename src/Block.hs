@@ -6,7 +6,7 @@ import BurningPrelude
 import Graphics.Holz
 import Control.Object
 
-type Appearance = (Prop, Cube Prop -> [Vertex])
+type Appearance = (Prop, Cube Prop -> V3 Float -> [Vertex])
 
 type Block = Mortal Action IO ()
 
@@ -21,9 +21,17 @@ genStrip (x : y : zs) = go x y zs where
   go a b (c : cs) = a : b : c : go c b cs
   go _ _ [] = []
 
-cubeMesh :: Cube [V2 Float] -> Cube [Vertex]
-cubeMesh uv = tabulate $ \s -> zipWith (\t v -> Vertex v t (fromSurface s)) (index uv s) (vs s) where
-  vs s = map (cross (fromSurface s ^/ 2)) [V3 (-1) (-1) 1, V3 (-1) 1 1, V3 1 (-1) 1, V3 1 1 1]
+cubeMesh :: Cube [V2 Float] -> V3 Float -> Cube [Vertex]
+cubeMesh uv pos = tabulate $ \s -> genStrip
+  $ zipWith (\t v -> Vertex (pos + v) t (fromSurface s)) (index uv s) (cubePoints s)
+
+cubePoints :: Surface -> [V3 Float]
+cubePoints SRear = [V3 0.5 (-0.5) (-0.5), V3 (-0.5) (-0.5) (-0.5), V3 0.5 0.5 (-0.5), V3 (-0.5) 0.5 (-0.5)]
+cubePoints SLeft = [V3 (-0.5) (-0.5) (-0.5), V3 (-0.5) (-0.5) 0.5, V3 (-0.5) 0.5 (-0.5), V3 (-0.5) 0.5 0.5]
+cubePoints SRight = [V3 0.5 (-0.5) 0.5, V3 0.5 (-0.5) (-0.5), V3 0.5 0.5 0.5, V3 0.5 0.5 (-0.5)]
+cubePoints STop = [V3 0.5 0.5 (-0.5), V3 (-0.5) 0.5 (-0.5), V3 0.5 0.5 0.5, V3 (-0.5) 0.5 0.5]
+cubePoints SFront = [V3 (-0.5) (-0.5) 0.5, V3 0.5 (-0.5) 0.5, V3 (-0.5) 0.5 0.5, V3 0.5 0.5 0.5]
+cubePoints SBottom = [V3 (-0.5) (-0.5) (-0.5), V3 0.5 (-0.5) (-0.5), V3 (-0.5) (-0.5) 0.5, V3 0.5 (-0.5) 0.5]
 
 hidden :: Monoid a => Prop -> a -> a
 hidden Transparent a = a
@@ -36,8 +44,8 @@ texUV m n = [V2 u v, V2 u' v, V2 u v', V2 u' v'] where
   u' = u + 1/16
   v' = v + 1/16
 
-cubeMeshOn :: Cube [V2 Float] -> Cube Prop -> [Vertex]
-cubeMeshOn uv c = fold $ hidden <$> c <*> cubeMesh uv
+cubeMeshOn :: Cube [V2 Float] -> Cube Prop -> V3 Float -> [Vertex]
+cubeMeshOn uv c pos = fold $ hidden <$> c <*> cubeMesh uv pos
 
 dirt :: Appearance
 dirt = (Opaque, cubeMeshOn $ pure (texUV 2 0))

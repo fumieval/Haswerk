@@ -59,8 +59,7 @@ object = initial &@~ \case
     pos <- use position
     V2 dir elev <- use angleP
     let rot = fromQuaternion $ axisAngle (V3 1 0 0) elev * axisAngle (V3 0 1 0) dir
-    let !m = m33_to_m44 rot !*! set translation (-pos) identity
-    return $ perspective (pi / 4) (1024/768) 1 360 !*! m
+    return $ m33_to_m44 rot !*! set translation (-pos) identity
 
 initial = Position (V3 0 2 0)
   <% Position' (V3 0 2 0)

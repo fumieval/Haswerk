@@ -20,10 +20,13 @@ penetration v p n
     ob = dot p n
     k = ob / c
 
-perlin :: (Floating a, Hashable a) => Int -> V2 a -> a
-perlin n pos = lp sy (lp sx (grad 0) (grad 1)) (lp sx (grad 2) (grad 3)) where
+perlin :: (RealFloat a, Hashable a) => Int -> V2 a -> a
+perlin n pos = lp v (lp u (grad (V2 0 0)) (grad (V2 1 0))) (lp u (grad (V2 0 1)) (grad (V2 1 1))) where
+  grid = fmap floor pos :: V2 Int
+  c@(V2 u v) = pos - fmap fromIntegral grid
   spline x = x ^ 2 * (3 - 2 * x)
-  V2 sx sy = fmap spline v
-  grad i = dot v $ angle (fromIntegral (hashWithSalt (n + i) v))
-  lp t a b = t * a + (1 - t) * b
-  v = fmap (\x -> 1 / (1 + exp x)) pos
+  grad i = dot (c - fmap fromIntegral i) $ angle $ fromIntegral $ hashWithSalt n (grid + i)
+  lp t a b = a + t * (b - a)
+
+harmonics :: (Num a, Num r) => [a] -> (a -> r) -> a -> r
+harmonics ks f v = sum [f (v * k) | k <- ks]

@@ -17,5 +17,14 @@ readTPQueue (TPQueue th) = do
       writeTVar th h'
       return (p, a)
 
+tryReadTPQueue :: Ord p => TPQueue p a -> STM (Maybe (p, a))
+tryReadTPQueue (TPQueue th) = do
+  h <- readTVar th
+  case Heap.uncons h of
+    Nothing -> return Nothing
+    Just (Heap.Entry p a, h') -> do
+      writeTVar th h'
+      return (Just (p, a))
+
 writeTPQueue :: Ord p => TPQueue p a -> p -> a -> STM ()
 writeTPQueue (TPQueue th) p a = modifyTVar' th $ Heap.insert (Heap.Entry p a)

@@ -15,6 +15,7 @@ module BurningPrelude (module Prelude,
   module Data.Function,
   module Linear,
   module Data.Functor.Rep,
+  module Data.Function,
   swap
   ) where
 
@@ -36,3 +37,4 @@ import Data.Monoid
 import Linear
 import Data.Tuple
 import Data.Functor.Rep
+import Data.Function (fix)
