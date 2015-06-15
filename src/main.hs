@@ -23,6 +23,7 @@ import qualified Data.Vector.Storable as V
 import Text.Printf
 import Control.Concurrent
 import qualified Data.Ix as Ix
+import qualified Data.Array as A
 
 type Chunks a = HM.HashMap (V3 Int) a
 
@@ -34,28 +35,31 @@ drawChunks v tex = itraverse_ (\i buf -> drawVertex (v !*! tr i) tex buf) where
   tr i = identity & translation .~ fmap fromIntegral (i ^* chunkSize)
 
 chunkSize :: Int
-chunkSize = 16
+chunkSize = 8
+
+chunkRange :: (V3 Int, V3 Int)
+chunkRange = (0, pure (chunkSize-1))
 
 worldSeed :: Int
 worldSeed = 0
 
-readChunk :: V3 Int -> IO (HM.HashMap (V3 Int) Block.Appearance)
+readChunk :: V3 Int -> IO (A.Array (V3 Int) (Maybe Block.Appearance))
 readChunk ch = do
   let origin@(V3 x0 y0 z0) = ch ^* chunkSize
-  let hm = HM.fromList $ do
-        p <- Ix.range (0, pure (chunkSize-1))
+  let hm = A.listArray (0, pure (chunkSize - 1)) $ do
+        p <- Ix.range (0, pure (chunkSize - 1))
         let pos = fmap fromIntegral (V2 x0 z0 + p) :: V2 Float
         let h = perlin worldSeed (pos / 30) + perlin worldSeed (pos / 71) + perlin worldSeed (pos / 130)
-        return (p, floor $ h * 32 + 16)
-  return $ HM.fromList $ do
-    p@(V3 x y z) <- Ix.range (0, pure (chunkSize-1))
+        return $ floor $ h * 32 + 16
+  return $ A.listArray chunkRange $ do
+    p@(V3 x y z) <- Ix.range chunkRange
     let h = hm ^?! ix (V2 x z)
     if
-      | y0 + y < h -> return (p, Block.dirt)
-      | y0 + y == h -> return (p, Block.gdirt)
-      | otherwise -> []
+      | y0 + y < h -> return $ Just $ Block.dirt
+      | y0 + y == h -> return $ Just $ Block.gdirt
+      | otherwise -> return Nothing
 
-main = withHolz FullScreen (Box (V2 0 0) (V2 1024 768)) $ do
+main = withHolz Windowed (Box (V2 0 0) (V2 1024 768)) $ do
 
   disableCursor
   clearColor (V4 0 0 0 1)
@@ -84,22 +88,24 @@ main = withHolz FullScreen (Box (V2 0 0) (V2 1024 768)) $ do
     $ writeTPQueue chunkUpdate (norm (fmap fromIntegral p :: V3 Float)) p
 
   skybox <- registerVertex Triangles $ V.fromList $ fold $ Block.cubeMesh (Cube
-    [V2 (1/3) 0.5, V2 (2/3) 0.5, V2 (1/3) 0, V2 (2/3) 0]
+    [V2 (2/3) 0.5, V2 (1/3) 0.5, V2 (2/3) 0, V2 (1/3) 0]
     [V2 0 0, V2 (1/3) 0, V2 0 0.5, V2 (1/3) 0.5]
-    [V2 (1/3) 1, V2 0 1, V2 (1/3) 0.5, V2 0 0.5]
-    [V2 (2/3) 1, V2 1 1, V2 (2/3) 0.5, V2 1 0.5]
-    [V2 1 0.5, V2 (2/3) 0.5, V2 1 0, V2 (2/3) 0]
-    [V2 (1/3) 1, V2 (2/3) 1, V2 (1/3) 0.5, V2 (2/3) 0.5]) zero
+    [V2 0 0.5, V2 (1/3) 0.5, V2 0 1, V2 (1/3) 1]
+    [V2 (2/3) 0.5, V2 1 0.5, V2 (2/3) 1, V2 1 1]
+    [V2 (2/3) 0, V2 1 0, V2 (2/3) 0.5, V2 1 0.5]
+    [V2 (1/3) 0.5, V2 (2/3) 0.5, V2 (1/3) 1, V2 (2/3) 1]) zero
 
-  forkIO $ forever $ do
-    (_, ch) <- atomically (readTPQueue chunkUpdate)
-    m <- readChunk ch
-    let !v = V.fromList $ do
-          k <- Ix.range (0, pure (chunkSize-1))
-          (_, f) <- m ^.. ix k
-          let cb = tabulate $ \s -> maybe Block.Transparent fst $ m ^? ix (k + fromSurface s)
-          f cb (fmap fromIntegral k)
-    atomically $ putTMVar chunkReady (ch, v)
+  let worker = forever $ do
+        (_, ch) <- atomically (readTPQueue chunkUpdate)
+        m <- readChunk ch
+        let !v = V.fromList $ do
+              k <- Ix.range chunkRange
+              (_, f) <- m ^.. ix k . _Just
+              let cb = tabulate $ \s -> maybe Block.Transparent fst $ m ^? ix (k + fromSurface s) . _Just
+              f cb (fmap fromIntegral k)
+        atomically $ putTMVar chunkReady (ch, v)
+
+  replicateM_ 3 (forkIO worker)
 
   -- Handle the input and draws the world periodically.
   forever $ withFrame $ do
@@ -123,12 +129,12 @@ main = withHolz FullScreen (Box (V2 0 0) (V2 1024 768)) $ do
     whenM (keyPress KeyS) $ dir .- id -= V2 0 1
     whenM (keyPress KeyA) $ dir .- id -= V2 1 0
     whenM (keyPress KeyD) $ dir .- id += V2 1 0
-    whenM (keyPress KeySpace) $ pl .& Player.position' += V3 0 1 0
-    whenM (keyPress KeyLeftShift) $ pl .& Player.position' -= V3 0 1 0
+    whenM (keyPress KeySpace) $ pl .& Player.position' += V3 0 0.1 0
+    whenM (keyPress KeyLeftShift) $ pl .& Player.position' -= V3 0 0.1 0
 
     v <- dir .- get
 
-    pl .^ Player.Move (v ^* dt)
+    unless (nearZero v) $ pl .^ Player.Move (v ^* dt * 3)
 
     psp <- pl .^ Player.GetPerspective
 
