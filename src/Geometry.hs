@@ -27,6 +27,3 @@ perlin n pos = lp v (lp u (grad (V2 0 0)) (grad (V2 1 0))) (lp u (grad (V2 0 1))
   spline x = x ^ 2 * (3 - 2 * x)
   grad i = dot (c - fmap fromIntegral i) $ angle $ fromIntegral $ hashWithSalt n (grid + i)
   lp t a b = a + t * (b - a)
-
-harmonics :: (Num a, Num r) => [a] -> (a -> r) -> a -> r
-harmonics ks f v = sum [f (v * k) | k <- ks]

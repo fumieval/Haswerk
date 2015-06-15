@@ -45,7 +45,8 @@ readChunk ch = do
   let hm = HM.fromList $ do
         p <- Ix.range (0, pure (chunkSize-1))
         let pos = fmap fromIntegral (V2 x0 z0 + p) :: V2 Float
-        return (p, floor $ harmonics [1/32, 1/64, 1/128] (perlin worldSeed) pos * 32 + 16)
+        let h = perlin worldSeed (pos / 30) + perlin worldSeed (pos / 71) + perlin worldSeed (pos / 130)
+        return (p, floor $ h * 32 + 16)
   return $ HM.fromList $ do
     p@(V3 x y z) <- Ix.range (0, pure (chunkSize-1))
     let h = hm ^?! ix (V2 x z)
@@ -54,7 +55,7 @@ readChunk ch = do
       | y0 + y == h -> return (p, Block.gdirt)
       | otherwise -> []
 
-main = withHolz Windowed (Box (V2 0 0) (V2 1024 768)) $ do
+main = withHolz FullScreen (Box (V2 0 0) (V2 1024 768)) $ do
 
   disableCursor
   clearColor (V4 0 0 0 1)
@@ -103,16 +104,15 @@ main = withHolz Windowed (Box (V2 0 0) (V2 1024 768)) $ do
   -- Handle the input and draws the world periodically.
   forever $ withFrame $ do
 
-    fix $ \self -> do
-      atomically (tryTakeTMVar chunkReady) >>= \case
-        Just (ch, v) -> do
-          buf <- registerVertex Triangles v
-          rm <- takeMVar buffers
-          case rm ^? ix ch of
-            Nothing -> return ()
-            Just a -> releaseVertex a
-          putMVar buffers $ rm & at ch ?~ buf
-        Nothing -> return ()
+    atomically (tryTakeTMVar chunkReady) >>= \case
+      Just (ch, v) -> do
+        buf <- registerVertex Triangles v
+        rm <- takeMVar buffers
+        case rm ^? ix ch of
+          Nothing -> return ()
+          Just a -> releaseVertex a
+        putMVar buffers $ rm & at ch ?~ buf
+      Nothing -> return ()
 
     let dt = 1/60
     pl .^ Player.Update dt
