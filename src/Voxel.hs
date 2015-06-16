@@ -21,14 +21,18 @@ data Cube a = Cube !a !a !a !a !a !a deriving (Functor, Foldable, Traversable)
 
 instance Monoid a => Monoid (Cube a) where
   mempty = pure mempty
+  {-# INLINE mempty #-}
   mappend = liftA2 mappend
+  {-# INLINE mappend #-}
 
 instance Distributive Cube where
   distribute = distributeRep
+  {-# INLINE distribute #-}
 
 instance Representable Cube where
   type Rep Cube = Surface
   tabulate f = Cube (f STop) (f SBottom) (f SLeft) (f SRight) (f SFront) (f SRear)
+  {-# INLINE tabulate #-}
   index (Cube a b c d e f) = \case
     STop -> a
     SBottom -> b
@@ -36,6 +40,7 @@ instance Representable Cube where
     SRight -> d
     SFront -> e
     SRear -> f
+  {-# INLINE index #-}
 
 instance Applicative Cube where
   pure a = Cube a a a a a a

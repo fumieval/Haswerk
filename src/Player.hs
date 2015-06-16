@@ -10,16 +10,14 @@ import Voxel
 import Entity
 import Data.Witherable
 
-decFields [d|
-  type Position = V3 Float
-  type Position' = V3 Float
-  type Velocity = V3 Float
-  type AngleP = V2 Float
-  type CurrentTarget = Target
-  type AngleV = V2 Float
-  |]
+mkField "position position' velocity angleP currentTarget angleV"
 
-type PlayerState = AllOf [Position, Position', Velocity, AngleP, CurrentTarget, AngleV]
+type PlayerState = Record '["position" :> V3 Float
+  , "position'" :> V3 Float
+  , "velocity" :> V3 Float
+  , "angleP" :> V2 Float
+  , "currentTarget" :> Target
+  , "angleV" :> V2 Float]
 
 data Actions a where
   Jump :: Actions ()
@@ -61,10 +59,11 @@ object = initial &@~ \case
     let rot = fromQuaternion $ axisAngle (V3 1 0 0) elev * axisAngle (V3 0 1 0) dir
     return $ m33_to_m44 rot !*! set translation (-pos) identity
 
-initial = Position (V3 0 2 0)
-  <% Position' (V3 0 2 0)
-  <% Velocity zero
-  <% AngleP zero
-  <% CurrentTarget TNone
-  <% AngleV zero
-  <% Nil
+initial :: PlayerState
+initial = position @= V3 0 2 0
+  <: position' @= V3 0 2 0
+  <: velocity @= zero
+  <: angleP @= zero
+  <: currentTarget @= TNone
+  <: angleV @= zero
+  <: Nil
