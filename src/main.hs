@@ -1,7 +1,6 @@
 import BurningPrelude
 import qualified Player
 import Geometry
-import Util
 import Assets
 import Voxel
 import TPQueue
@@ -64,16 +63,16 @@ main = withHolz Windowed (Box (V2 0 0) (V2 1024 768)) $ do
   disableCursor
   clearColor (V4 0 0 0 1)
 
-  pl <- new Player.object
+  pl <- new $ variable Player.initial
   prevCursor <- new $ variable zero
 
   linkMouseButton $ \case
-    Down 0 -> pl .^ Player.Attack
-    Down 1 -> pl .^ Player.Act
+    Down 0 -> pl .- Player.attack
+    Down 1 -> pl .- Player.act
     _ -> return ()
   linkMouseCursor $ \pos -> do
     pos' <- prevCursor .- get
-    pl .^ Player.Turn ((pos - pos') / 300)
+    pl .- Player.turn ((pos - pos') / 300)
     prevCursor .- put pos
 
   buffers <- newMVar emptyChunks
@@ -121,7 +120,7 @@ main = withHolz Windowed (Box (V2 0 0) (V2 1024 768)) $ do
       Nothing -> return ()
 
     let dt = 1/60
-    pl .^ Player.Update dt
+    pl .- Player.update dt
 
     dir <- new $ variable zero
 
@@ -129,20 +128,28 @@ main = withHolz Windowed (Box (V2 0 0) (V2 1024 768)) $ do
     whenM (keyPress KeyS) $ dir .- id -= V2 0 1
     whenM (keyPress KeyA) $ dir .- id -= V2 1 0
     whenM (keyPress KeyD) $ dir .- id += V2 1 0
-    whenM (keyPress KeySpace) $ pl .& Player.position' += V3 0 0.1 0
-    whenM (keyPress KeyLeftShift) $ pl .& Player.position' -= V3 0 0.1 0
+    whenM (keyPress KeySpace) $ pl .- Player.position' += V3 0 0.1 0
+    whenM (keyPress KeyLeftShift) $ pl .- Player.position' -= V3 0 0.1 0
 
     v <- dir .- get
 
-    unless (nearZero v) $ pl .^ Player.Move (v ^* dt * 3)
+    unless (nearZero v) $ pl .- Player.move (v ^* dt * 3)
 
-    psp <- pl .^ Player.GetPerspective
+    psp <- pl .- Player.getPerspective
 
     setProjection $ perspective (pi / 4) (1024/768) 1 360
 
     drawVertex (psp !*! scaled (V4 256 256 (-256) 1)) texSkybox skybox
     drawChunks psp texBlocks =<< readMVar buffers
     threadDelay $ floor $ dt * 1000 * 1000
+
+newtype Min a = Min { getMin :: Maybe a }
+
+instance Ord a => Monoid (Min a) where
+  mempty = Min Nothing
+  mappend (Min Nothing) a = a
+  mappend a (Min Nothing) = a
+  mappend (Min (Just a)) (Min (Just b)) = Min (Just (min a b))
 
 penetrationEntry :: V3 Float -> V3 Float -> V3 Int -> Min (Heap.Entry Float (V3 Int, Surface))
 penetrationEntry pos ray i = flip foldMap allSurfaces $ \s -> do

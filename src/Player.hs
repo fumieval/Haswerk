@@ -1,14 +1,7 @@
 module Player where
 import BurningPrelude
-import Control.Object
-import Data.Distributive (distribute)
 import Data.Extensible
-import qualified Block
-import qualified Data.Map as Map
-import Util
-import Voxel
 import Entity
-import Data.Witherable
 
 mkField "position position' velocity angleP currentTarget angleV"
 
@@ -19,45 +12,44 @@ type PlayerState = Record '["position" :> V3 Float
   , "currentTarget" :> Target
   , "angleV" :> V2 Float]
 
-data Actions a where
-  Jump :: Actions ()
-  Move :: V2 Float -> Actions ()
-  Turn :: V2 Float -> Actions ()
-  Attack :: Actions ()
-  Act :: Actions ()
-  Update :: Float -> Actions ()
-  GetPerspective :: Actions (M44 Float)
+jump :: StateT PlayerState IO ()
+jump = velocity += V3 0 0.5 0
 
-onState :: forall s t m. Monad m => s -> (forall x. t x -> StateT s m x) -> Object t m
-onState s h = stateful h s
+turn :: V2 Float -> StateT PlayerState IO ()
+turn d = do
+  angleV += d
+  v <- use angleV
+  p <- use angleP
+  angleP += (v - p) * 0.5
 
-object :: Object (Public PlayerState Actions) IO
-object = initial &@~ \case
-  Jump -> velocity += V3 0 0.5 0
-  Turn d -> do
-    angleV += d
-    v <- use angleV
-    p <- use angleP
-    angleP += (v - p) * 0.5
-  Move v　-> do
-    V2 dir _ <- use angleP
-    position' += (V3 (angle dir) 0 (-perp (angle dir)) !* v) ^* 4
-  Attack -> use currentTarget >>= \case
-    TNone -> return ()
-    TBlock p _ -> return ()
-  Act -> use currentTarget >>= \case
-    TNone -> return ()
-    TBlock p s -> return ()
-  Update dt -> do
-    pos <- use position
-    vel <- use velocity
-    V2 dir elev <- use angleP
-    position <~ use position'
-  GetPerspective -> do
-    pos <- use position
-    V2 dir elev <- use angleP
-    let rot = fromQuaternion $ axisAngle (V3 1 0 0) elev * axisAngle (V3 0 1 0) dir
-    return $ m33_to_m44 rot !*! set translation (-pos) identity
+move :: V2 Float -> StateT PlayerState IO ()
+move v　= do
+  V2 dir _ <- use angleP
+  position' += (V3 (angle dir) 0 (-perp (angle dir)) !* v) ^* 4
+
+attack :: StateT PlayerState IO ()
+attack = use currentTarget >>= \case
+  TNone -> return ()
+  TBlock p _ -> return ()
+
+act :: StateT PlayerState IO ()
+act = use currentTarget >>= \case
+  TNone -> return ()
+  TBlock p s -> return ()
+
+update :: Float -> StateT PlayerState IO ()
+update dt = do
+  pos <- use position
+  vel <- use velocity
+  V2 dir elev <- use angleP
+  position <~ use position'
+
+getPerspective :: StateT PlayerState IO (M44 Float)
+getPerspective = do
+  pos <- use position
+  V2 dir elev <- use angleP
+  let rot = fromQuaternion $ axisAngle (V3 1 0 0) elev * axisAngle (V3 0 1 0) dir
+  return $ m33_to_m44 rot !*! set translation (-pos) identity
 
 initial :: PlayerState
 initial = position @= V3 0 2 0

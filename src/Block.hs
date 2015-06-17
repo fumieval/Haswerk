@@ -4,17 +4,10 @@ import Voxel
 import Assets
 import BurningPrelude
 import Graphics.Holz
-import Control.Object
 
 type Appearance = (Prop, Cube Prop -> V3 Float -> [Vertex])
 
-type Block = Mortal Action IO ()
-
 data Prop = Transparent | Opaque
-
-data Action x where
-  Render :: Float -> Action Appearance
-  Damage :: Float -> Action ()
 
 genStrip :: [a] -> [a]
 genStrip (x : y : zs) = go x y zs where
