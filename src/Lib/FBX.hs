@@ -1,5 +1,5 @@
 {-# LANGUAGE LambdaCase, TypeFamilies, DataKinds, TypeOperators, FlexibleContexts, OverloadedStrings, StandaloneDeriving #-}
-module Codec.Container.FBX where
+module Lib.FBX where
 
 import qualified Data.Vector.Unboxed as UV
 import Data.Binary
@@ -19,7 +19,7 @@ import Unsafe.Coerce
 import Debug.Trace
 import qualified Data.HashMap.Strict as HM
 
-data FBX = FBX Version Record
+data FBX = FBX Version Record deriving Show
 
 newtype Version = Version Word32 deriving Show
 

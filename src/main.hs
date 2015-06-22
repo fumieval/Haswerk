@@ -2,8 +2,8 @@ import BurningPrelude
 import qualified Player
 import Geometry
 import Assets
-import Voxel
-import TPQueue
+import Lib.Cube
+import Lib.TPQueue
 import Control.Bool
 import Control.Concurrent
 import Control.Concurrent.STM
@@ -42,8 +42,8 @@ chunkRange = (0, pure (chunkSize-1))
 worldSeed :: Int
 worldSeed = 0
 
-readChunk :: V3 Int -> IO (A.Array (V3 Int) (Maybe Block.Appearance))
-readChunk ch = do
+generateChunk :: V3 Int -> IO (A.Array (V3 Int) (Maybe Block.Appearance))
+generateChunk ch = do
   let origin@(V3 x0 y0 z0) = ch ^* chunkSize
   let hm = A.listArray (0, pure (chunkSize - 1)) $ do
         p <- Ix.range (0, pure (chunkSize - 1))
@@ -57,6 +57,9 @@ readChunk ch = do
       | y0 + y < h -> return $ Just $ Block.dirt
       | y0 + y == h -> return $ Just $ Block.gdirt
       | otherwise -> return Nothing
+
+readChunk :: V3 Int -> IO (A.Array (V3 Int) (Maybe Block.Appearance))
+readChunk = generateChunk
 
 main = withHolz Windowed (Box (V2 0 0) (V2 1024 768)) $ do
 

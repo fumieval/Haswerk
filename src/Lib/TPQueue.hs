@@ -1,4 +1,4 @@
-module TPQueue where
+module Lib.TPQueue where
 import BurningPrelude
 import Control.Concurrent.STM
 import qualified Data.Heap as Heap

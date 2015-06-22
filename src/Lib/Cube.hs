@@ -1,5 +1,5 @@
 {-# LANGUAGE DeriveFunctor, DeriveFoldable, DeriveTraversable #-}
-module Voxel where
+module Lib.Cube where
 import BurningPrelude
 import Data.Distributive
 

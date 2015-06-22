@@ -1,6 +1,6 @@
 {-# LANGUAGE DeriveFunctor #-}
 module Block where
-import Voxel
+import Lib.Cube
 import Assets
 import BurningPrelude
 import Graphics.Holz
