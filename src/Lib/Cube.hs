@@ -1,7 +1,9 @@
 {-# LANGUAGE DeriveFunctor, DeriveFoldable, DeriveTraversable #-}
 module Lib.Cube where
-import BurningPrelude
+import Prelude.Kai
 import Data.Distributive
+import Data.Functor.Rep
+import Linear
 
 data Surface = STop | SBottom | SLeft | SRight | SFront | SRear
 

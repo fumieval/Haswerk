@@ -1,6 +1,5 @@
 module Assets where
-import BurningPrelude
-import Data.Monoid
+import Prelude.Kai
 import qualified Data.Vector.Storable as VS
 import qualified Data.Vector as V
 import qualified Data.ByteString.Lazy as BL

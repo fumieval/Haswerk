@@ -1,6 +1,6 @@
 {-# LANGUAGE LambdaCase, TypeFamilies, DataKinds, TypeOperators, FlexibleContexts, OverloadedStrings, StandaloneDeriving #-}
 module Lib.FBX where
-
+import Prelude.Kai
 import qualified Data.Vector.Unboxed as UV
 import Data.Binary
 import Data.Binary.Get

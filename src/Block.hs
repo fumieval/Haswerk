@@ -1,8 +1,10 @@
 {-# LANGUAGE DeriveFunctor #-}
 module Block where
+import Prelude.Kai
 import Lib.Cube
+import Linear
+import Data.Functor.Rep
 import Assets
-import BurningPrelude
 import Graphics.Holz
 
 type Appearance = (Prop, Cube Prop -> V3 Float -> [Vertex])

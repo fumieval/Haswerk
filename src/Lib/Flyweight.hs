@@ -1,6 +1,6 @@
 {-# LANGUAGE FlexibleContexts #-}
 module Lib.Flyweight where
-import BurningPrelude
+import Prelude.Kai
 import Data.Functor.Rep
 import qualified Data.HashMap.Strict as HM
 import System.Random

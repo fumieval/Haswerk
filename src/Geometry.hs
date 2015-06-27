@@ -1,5 +1,6 @@
 module Geometry where
-import BurningPrelude
+import Prelude.Kai
+import Linear
 import Data.Hashable
 
 spherical :: RealFloat a => a -> a -> V3 a

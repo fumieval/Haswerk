@@ -1,28 +1,32 @@
-import BurningPrelude
-import qualified Player
-import Geometry
 import Assets
-import Lib.Cube
-import Lib.TPQueue
 import Control.Bool
 import Control.Concurrent
+import Control.Concurrent
 import Control.Concurrent.STM
+import Control.Lens
+import Control.Monad.State
 import Control.Object
 import Data.BoundingBox (Box(..))
+import Data.Functor.Rep
 import Data.Reflection
 import Data.Witherable
 import Debug.Trace
 import Entity
+import Geometry
 import Graphics.Holz
+import Lib.Cube
+import Lib.TPQueue
+import Linear
+import Prelude.Kai
 import qualified Block
+import qualified Data.Array as A
 import qualified Data.HashMap.Strict as HM
 import qualified Data.Heap as Heap
+import qualified Data.Ix as Ix
 import qualified Data.Set as Set
 import qualified Data.Vector.Storable as V
+import qualified Player
 import Text.Printf
-import Control.Concurrent
-import qualified Data.Ix as Ix
-import qualified Data.Array as A
 
 type Chunks a = HM.HashMap (V3 Int) a
 
@@ -107,7 +111,7 @@ main = withHolz Windowed (Box (V2 0 0) (V2 1024 768)) $ do
               f cb (fmap fromIntegral k)
         atomically $ putTMVar chunkReady (ch, v)
 
-  replicateM_ 3 (forkIO worker)
+  replicateA_ 3 (forkIO worker)
 
   -- Handle the input and draws the world periodically.
   forever $ withFrame $ do

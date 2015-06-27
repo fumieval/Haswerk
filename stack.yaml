@@ -1,0 +1,18 @@
+flags: {}
+packages:
+- E:\hs\bindings-portaudio
+- E:\hs\boundingboxes
+- E:\hs\control-bool
+- E:\hs\extensible
+- E:\hs\holz
+- E:\hs\libvorbis
+- E:\hs\monad-skeleton
+- E:\hs\objective
+- E:\hs\witherable
+- E:\hs\prelude-kai
+- E:\GitHub\freetype2
+- '.'
+extra-deps:
+- GLFW-b-1.4.7.2
+- bindings-GLFW-3.1.1.3
+resolver: nightly-2015-06-25

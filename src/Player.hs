@@ -1,5 +1,8 @@
 module Player where
-import BurningPrelude
+import Prelude.Kai
+import Control.Lens
+import Linear
+import Control.Monad.State
 import Data.Extensible
 import Entity
 
@@ -12,39 +15,39 @@ type PlayerState = Record '["position" :> V3 Float
   , "currentTarget" :> Target
   , "angleV" :> V2 Float]
 
-jump :: StateT PlayerState IO ()
+jump :: MonadState PlayerState m => m ()
 jump = velocity += V3 0 0.5 0
 
-turn :: V2 Float -> StateT PlayerState IO ()
+turn :: MonadState PlayerState m => V2 Float -> m ()
 turn d = do
   angleV += d
   v <- use angleV
   p <- use angleP
   angleP += (v - p) * 0.5
 
-move :: V2 Float -> StateT PlayerState IO ()
+move :: MonadState PlayerState m => V2 Float -> m ()
 move v　= do
   V2 dir _ <- use angleP
   position' += (V3 (angle dir) 0 (-perp (angle dir)) !* v) ^* 4
 
-attack :: StateT PlayerState IO ()
+attack :: MonadState PlayerState m => m ()
 attack = use currentTarget >>= \case
   TNone -> return ()
   TBlock p _ -> return ()
 
-act :: StateT PlayerState IO ()
+act :: MonadState PlayerState m => m ()
 act = use currentTarget >>= \case
   TNone -> return ()
   TBlock p s -> return ()
 
-update :: Float -> StateT PlayerState IO ()
+update :: MonadState PlayerState m => Float -> m ()
 update dt = do
   pos <- use position
   vel <- use velocity
   V2 dir elev <- use angleP
   position <~ use position'
 
-getPerspective :: StateT PlayerState IO (M44 Float)
+getPerspective :: MonadState PlayerState m => m (M44 Float)
 getPerspective = do
   pos <- use position
   V2 dir elev <- use angleP
