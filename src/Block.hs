@@ -1,11 +1,12 @@
 {-# LANGUAGE DeriveFunctor #-}
 module Block where
-import Prelude.Kai
+
 import Lib.Cube
 import Linear
 import Data.Functor.Rep
 import Assets
 import Graphics.Holz
+import Vertex
 
 type Appearance = (Prop, Cube Prop -> V3 Float -> [Vertex])
 
@@ -15,10 +16,12 @@ genStrip :: [a] -> [a]
 genStrip (x : y : zs) = go x y zs where
   go a b (c : cs) = a : b : c : go c b cs
   go _ _ [] = []
+genStrip _ = error "genStrip: the list length must be equal or longer than 3"
+{-# INLINE genStrip #-}
 
 cubeMesh :: Cube [V2 Float] -> V3 Float -> Cube [Vertex]
 cubeMesh uv pos = tabulate $ \s -> genStrip
-  $ zipWith (\t v -> Vertex (pos + v) t (fromSurface s)) (index uv s) (cubePoints s)
+  $ zipWith (\t v -> Vertex (pos + v) t (fromSurface s) (pure 1)) (index uv s) (cubePoints s)
 
 cubePoints :: Surface -> [V3 Float]
 cubePoints SRear = [V3 (-0.5) 0.5 (-0.5), V3 0.5 0.5 (-0.5), V3 (-0.5) (-0.5) (-0.5), V3 0.5 (-0.5) (-0.5)]
@@ -40,7 +43,7 @@ texUV m n = [V2 u v, V2 u' v, V2 u v', V2 u' v'] where
   v' = v + 1/16 - 2/256
 
 cubeMeshOn :: Cube [V2 Float] -> Cube Prop -> V3 Float -> [Vertex]
-cubeMeshOn uv c pos = fold $ hidden <$> c <*> cubeMesh uv pos
+cubeMeshOn uv c pos = foldMap id $ hidden <$> c <*> cubeMesh uv pos
 
 dirt :: Appearance
 dirt = (Opaque, cubeMeshOn $ pure (texUV 2 0))

@@ -1,5 +1,5 @@
 module Lib.TPQueue where
-import Prelude.Kai
+
 import Control.Concurrent.STM
 import qualified Data.Heap as Heap
 

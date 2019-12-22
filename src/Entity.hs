@@ -1,5 +1,5 @@
 module Entity where
-import Prelude.Kai
+
 import Lib.Cube
 import Linear
 

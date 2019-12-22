@@ -1,5 +1,4 @@
 module Player where
-import Prelude.Kai
 import Control.Lens
 import Linear
 import Control.Monad.State
@@ -8,12 +7,12 @@ import Entity
 
 mkField "position position' velocity angleP currentTarget angleV"
 
-type PlayerState = Record '["position" :> V3 Float
-  , "position'" :> V3 Float
-  , "velocity" :> V3 Float
-  , "angleP" :> V2 Float
-  , "currentTarget" :> Target
-  , "angleV" :> V2 Float]
+type PlayerState = Record '["position" >: V3 Float
+  , "position'" >: V3 Float
+  , "velocity" >: V3 Float
+  , "angleP" >: V2 Float
+  , "currentTarget" >: Target
+  , "angleV" >: V2 Float]
 
 jump :: MonadState PlayerState m => m ()
 jump = velocity += V3 0 0.5 0
@@ -61,4 +60,4 @@ initial = position @= V3 0 2 0
   <: angleP @= zero
   <: currentTarget @= TNone
   <: angleV @= zero
-  <: Nil
+  <: nil

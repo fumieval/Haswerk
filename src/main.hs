@@ -1,23 +1,24 @@
 import Assets
 import Control.Bool
-import Control.Concurrent
-import Control.Concurrent
-import Control.Concurrent.STM
 import Control.Lens
+import Control.Monad.Reader
 import Control.Monad.State
 import Control.Object
+import Data.Semigroup
 import Data.BoundingBox (Box(..))
 import Data.Functor.Rep
 import Data.Reflection
 import Data.Witherable
+import Data.Traversable
 import Debug.Trace
 import Entity
 import Geometry
 import Graphics.Holz
+import Graphics.Holz.Shader
 import Lib.Cube
 import Lib.TPQueue
 import Linear
-import Prelude.Kai
+import Vertex
 import qualified Block
 import qualified Data.Array as A
 import qualified Data.HashMap.Strict as HM
@@ -27,13 +28,28 @@ import qualified Data.Set as Set
 import qualified Data.Vector.Storable as V
 import qualified Player
 import Text.Printf
+import UnliftIO.Concurrent
+import UnliftIO.STM
+
+data WindowAndShader = WindowAndShader
+  { wsWindow :: !Window
+  , wsShader :: !(Shader ModelProj Vertex)
+  }
+instance HasWindow WindowAndShader where getWindow = wsWindow
+instance HasShader WindowAndShader where
+  type ShaderUniform WindowAndShader = ModelProj
+  type ShaderVertex WindowAndShader = Vertex
+  getShader = wsShader
 
 type Chunks a = HM.HashMap (V3 Int) a
 
 emptyChunks :: Chunks a
 emptyChunks = HM.empty
 
-drawChunks :: Given System => M44 Float -> Texture -> Chunks VertexBuffer -> IO ()
+drawChunks :: M44 Float
+  -> Texture
+  -> Chunks (VertexBuffer Vertex)
+  -> ReaderT WindowAndShader IO ()
 drawChunks v tex = itraverse_ (\i buf -> drawVertex (v !*! tr i) tex buf) where
   tr i = identity & translation .~ fmap fromIntegral (i ^* chunkSize)
 
@@ -53,7 +69,7 @@ generateChunk ch = do
         p <- Ix.range (0, pure (chunkSize - 1))
         let pos = fmap fromIntegral (V2 x0 z0 + p) :: V2 Float
         let h = perlin worldSeed (pos / 30) + perlin worldSeed (pos / 71) + perlin worldSeed (pos / 130)
-        return $ floor $ h * 32 + 16
+        return $ round $ h * 16 + 16
   return $ A.listArray chunkRange $ do
     p@(V3 x y z) <- Ix.range chunkRange
     let h = hm ^?! ix (V2 x z)
@@ -65,7 +81,14 @@ generateChunk ch = do
 readChunk :: V3 Int -> IO (A.Array (V3 Int) (Maybe Block.Appearance))
 readChunk = generateChunk
 
-main = withHolz Windowed (Box (V2 0 0) (V2 1024 768)) $ do
+main = withHolz $ do
+  win <- openWindow Windowed (Box (V2 0 0) (V2 1024 768))
+  sh <- makeShader vertexShaderSource fragmentShaderSource
+  runReaderT holzMain (WindowAndShader win sh)
+
+holzMain :: ReaderT WindowAndShader IO ()
+holzMain = do
+  win <- asks wsWindow
 
   disableCursor
   clearColor (V4 0 0 0 1)
@@ -82,18 +105,18 @@ main = withHolz Windowed (Box (V2 0 0) (V2 1024 768)) $ do
     pl .- Player.turn ((pos - pos') / 300)
     prevCursor .- put pos
 
-  buffers <- newMVar emptyChunks
+  buffers <- liftIO $ newMVar emptyChunks
 
   texBlocks <- registerTexture _terrain_png
   texSkybox <- registerTexture _skybox_png
 
-  chunkUpdate <- atomically newTPQueue :: IO (TPQueue Float (V3 Int))
-  chunkReady <- atomically newEmptyTMVar :: IO (TMVar (V3 Int, V.Vector Vertex))
+  chunkUpdate :: TPQueue Float (V3 Int) <- atomically newTPQueue
+  chunkReady :: TMVar (V3 Int, V.Vector Vertex) <- atomically newEmptyTMVar
 
-  for (Ix.range (V3 (-16) (-1) (-16), V3 16 2 16)) $ \p -> atomically
+  for (Ix.range (V3 (-16) (-1) (-16), V3 16 2 16)) $ \p -> liftIO $ atomically
     $ writeTPQueue chunkUpdate (norm (fmap fromIntegral p :: V3 Float)) p
 
-  skybox <- registerVertex Triangles $ V.fromList $ fold $ Block.cubeMesh (Cube
+  skybox <- registerVertex Triangles $ V.fromList $ foldMap id $ Block.cubeMesh (Cube
     [V2 (2/3) 0.5, V2 (1/3) 0.5, V2 (2/3) 0, V2 (1/3) 0]
     [V2 0 0, V2 (1/3) 0, V2 0 0.5, V2 (1/3) 0.5]
     [V2 0 0.5, V2 (1/3) 0.5, V2 0 1, V2 (1/3) 1]
@@ -111,10 +134,10 @@ main = withHolz Windowed (Box (V2 0 0) (V2 1024 768)) $ do
               f cb (fmap fromIntegral k)
         atomically $ putTMVar chunkReady (ch, v)
 
-  replicateA_ 3 (forkIO worker)
+  replicateM_ 3 $ forkIO $ liftIO worker
 
   -- Handle the input and draws the world periodically.
-  forever $ withFrame $ do
+  forever $ withFrame win $ do
 
     atomically (tryTakeTMVar chunkReady) >>= \case
       Just (ch, v) -> do
@@ -127,40 +150,32 @@ main = withHolz Windowed (Box (V2 0 0) (V2 1024 768)) $ do
       Nothing -> return ()
 
     let dt = 1/60
-    pl .- Player.update dt
+    liftIO $ pl .- Player.update dt
 
-    dir <- new $ variable zero
+    dir <- liftIO $ new $ variable zero
 
-    whenM (keyPress KeyW) $ dir .- id += V2 0 1
-    whenM (keyPress KeyS) $ dir .- id -= V2 0 1
-    whenM (keyPress KeyA) $ dir .- id -= V2 1 0
-    whenM (keyPress KeyD) $ dir .- id += V2 1 0
-    whenM (keyPress KeySpace) $ pl .- Player.position' += V3 0 0.1 0
-    whenM (keyPress KeyLeftShift) $ pl .- Player.position' -= V3 0 0.1 0
+    whenM (keyPress KeyW) $ liftIO $ dir .- id += V2 0 1
+    whenM (keyPress KeyS) $ liftIO $ dir .- id -= V2 0 1
+    whenM (keyPress KeyA) $ liftIO $ dir .- id -= V2 1 0
+    whenM (keyPress KeyD) $ liftIO $ dir .- id += V2 1 0
+    whenM (keyPress KeySpace) $ liftIO $ pl .- Player.position' += V3 0 0.1 0
+    whenM (keyPress KeyLeftShift) $ liftIO $ pl .- Player.position' -= V3 0 0.1 0
 
-    v <- dir .- get
+    v <- liftIO $ dir .- get
 
-    unless (nearZero v) $ pl .- Player.move (v ^* dt * 3)
+    liftIO $ unless (nearZero v) $ pl .- Player.move (v ^* dt * 3)
 
-    psp <- pl .- Player.getPerspective
+    psp <- liftIO $ pl .- Player.getPerspective
 
-    setProjection $ perspective (pi / 4) (1024/768) 1 360
+    setUniform mpProjection $ perspective (pi / 4) (1024/768) 1 360
 
     drawVertex (psp !*! scaled (V4 256 256 (-256) 1)) texSkybox skybox
-    drawChunks psp texBlocks =<< readMVar buffers
+    readMVar buffers >>= drawChunks psp texBlocks
     threadDelay $ floor $ dt * 1000 * 1000
 
-newtype Min a = Min { getMin :: Maybe a }
-
-instance Ord a => Monoid (Min a) where
-  mempty = Min Nothing
-  mappend (Min Nothing) a = a
-  mappend a (Min Nothing) = a
-  mappend (Min (Just a)) (Min (Just b)) = Min (Just (min a b))
-
-penetrationEntry :: V3 Float -> V3 Float -> V3 Int -> Min (Heap.Entry Float (V3 Int, Surface))
+penetrationEntry :: V3 Float -> V3 Float -> V3 Int -> Maybe (Min (Heap.Entry Float (V3 Int, Surface)))
 penetrationEntry pos ray i = flip foldMap allSurfaces $ \s -> do
   let n = fromSurface s
   case penetration ray (fmap fromIntegral i + n ^* 0.5 - pos) n of
-    Just k -> Min $ Just $ Heap.Entry k (i, s)
+    Just k -> Just $ Min $ Heap.Entry k (i, s)
     Nothing -> mempty

@@ -1,5 +1,4 @@
 module Geometry where
-import Prelude.Kai
 import Linear
 import Data.Hashable
 

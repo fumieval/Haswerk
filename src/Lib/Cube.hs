@@ -1,6 +1,6 @@
 {-# LANGUAGE DeriveFunctor, DeriveFoldable, DeriveTraversable #-}
 module Lib.Cube where
-import Prelude.Kai
+import Control.Applicative
 import Data.Distributive
 import Data.Functor.Rep
 import Linear
@@ -21,11 +21,12 @@ fromSurface SRear = V3 0 0 (-1)
 
 data Cube a = Cube !a !a !a !a !a !a deriving (Functor, Foldable, Traversable)
 
+instance Semigroup a => Semigroup (Cube a) where
+  (<>) = liftA2 (<>)
+
 instance Monoid a => Monoid (Cube a) where
   mempty = pure mempty
   {-# INLINE mempty #-}
-  mappend = liftA2 mappend
-  {-# INLINE mappend #-}
 
 instance Distributive Cube where
   distribute = distributeRep
